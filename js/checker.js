@@ -138,8 +138,12 @@ function addResult(
   // ================= NORMAL =================
   if (unitForData === undefined) unitForData = unitForRef;
 
-  const leftRaw = formatValue(value, isQty, unitForData);
-  const rightRaw = formatValue(ref, isQty, unitForRef);
+  let leftRaw = formatValue(value, isQty, unitForData);
+  let rightRaw = formatValue(ref, isQty, unitForRef);
+
+  // 🔧 perbaiki format tanggal
+  leftRaw = String(leftRaw).replace(/\s*-\s*/g, "-");
+  rightRaw = String(rightRaw).replace(/\s*-\s*/g, "-");
 
   let leftHTML = leftRaw;
   let rightHTML = rightRaw;
