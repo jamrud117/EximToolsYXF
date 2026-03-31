@@ -508,7 +508,15 @@ $("processBtn").addEventListener("click", async () => {
 $("copyBtn").addEventListener("click", () => {
   if (!$("result").value) return;
   navigator.clipboard.writeText($("result").value);
-  Swal.fire({ icon: "success", title: "Disalin!" });
+  Swal.fire({
+    toast: true,
+    position: "top-end",
+    icon: "success",
+    title: "Disalin!",
+    showConfirmButton: false,
+    timer: 2000,
+    timerProgressBar: true,
+  });
 });
 
 $("clearBtn").addEventListener("click", () => {
