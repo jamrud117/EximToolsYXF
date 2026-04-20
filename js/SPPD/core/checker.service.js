@@ -134,24 +134,37 @@ async function runChecks({
     for (const doc of parsedExBC) {
       onSectionHeader("exbc", `Ex BC ${doc.jenisDokumen}`);
 
-      const invNomorArr = doc.items.map((i) => i.nomor);
-      const invTanggalArr = doc.items.map((i) => i.tanggal);
       const draft = getExBCFromDraft(sheetsDATA.DOKUMEN, doc.jenisDokumen);
 
-      onResult(
-        "Nomor Daftar",
-        draft.nomorText,
-        invNomorArr.join(", "),
-        draft.nomorArr.join(",") === invNomorArr.join(","),
-        { group: "exbc", isSpecial: true }
-      );
-      onResult(
-        "Tanggal Daftar",
-        draft.tanggalText,
-        invTanggalArr.join(", "),
-        draft.tanggalArr.join(",") === invTanggalArr.join(","),
-        { group: "exbc", isSpecial: true }
-      );
+      const draftLookup = new Map();
+      draft.nomorArr.forEach((nomor, i) => {
+        draftLookup.set(nomor, draft.tanggalArr[i] ?? "");
+      });
+
+      for (const item of doc.items) {
+        const invNomor = String(item.nomor).trim();
+        const invTgl = parseExcelDate(item.tanggal);
+
+        const draftNomorFound = draftLookup.has(invNomor)
+          ? invNomor
+          : "(tidak ditemukan)";
+        const draftTglFound = parseExcelDate(draftLookup.get(invNomor) ?? "");
+
+        onResult(
+          "Nomor Daftar",
+          draftNomorFound,
+          invNomor,
+          draftLookup.has(invNomor),
+          { group: "exbc", isSpecial: true }
+        );
+        onResult(
+          "Tanggal Daftar",
+          draftTglFound,
+          invTgl,
+          isEqual(draftTglFound, invTgl),
+          { group: "exbc", isSpecial: true }
+        );
+      }
     }
   }
 

@@ -475,28 +475,24 @@ function findDocDateByCode(sheet, code) {
   return "";
 }
 
-function getExBCFromDraft(sheet, kodeDokumen) {
-  const range = XLSX.utils.decode_range(sheet["!ref"]);
+function getExBCFromDraft(sheetDokumen, jenisDokumen) {
+  const range = XLSX.utils.decode_range(sheetDokumen["!ref"]);
   const nomorArr = [];
   const tanggalArr = [];
 
-  for (let r = range.s.r; r <= range.e.r; r++) {
-    const kode = getCellValueRC(sheet, r, 2);
-    if (String(kode).trim() !== String(kodeDokumen)) continue;
+  for (let r = 1; r <= range.e.r; r++) {
+    const jenis = getCellValue(sheetDokumen, `C${r + 1}`); // sesuaikan kolom jenis
+    if (String(jenis).trim() !== String(jenisDokumen).trim()) continue;
 
-    const nomorRaw = getCellTextRC(sheet, r, 3);
-    const tanggalRaw = getCellValueRC(sheet, r, 4);
+    const nomor = getCellValue(sheetDokumen, `D${r + 1}`); // sesuaikan kolom nomor
+    const tanggal = getCellValue(sheetDokumen, `E${r + 1}`); // sesuaikan kolom tanggal
+    if (!nomor) continue;
 
-    if (nomorRaw) nomorArr.push(String(nomorRaw).trim());
-    if (tanggalRaw) tanggalArr.push(parseExcelDate(tanggalRaw));
+    nomorArr.push(String(nomor).trim());
+    tanggalArr.push(tanggal ?? "");
   }
 
-  return {
-    nomorArr,
-    tanggalArr,
-    nomorText: nomorArr.join(", "),
-    tanggalText: tanggalArr.join(", "),
-  };
+  return { nomorArr, tanggalArr };
 }
 
 /**
