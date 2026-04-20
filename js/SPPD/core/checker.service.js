@@ -381,17 +381,29 @@ async function runChecks({
 
     const draftNW = getCellValue(sheetsDATA.BARANG, "T" + (r + 1));
     const plNW = plCols.nw ? getCellValueRC(sheetPL, rowPL, plCols.nw) : "";
-    onResult("NW", draftNW, plNW, isEqual(draftNW, plNW), {
-      unit: "KG",
-      group: `barang-${barangCounter}`,
-    });
+    onResult(
+      "NW",
+      formatCurr(draftNW),
+      formatCurr(plNW),
+      isEqual(draftNW, plNW),
+      {
+        unit: "KG",
+        group: `barang-${barangCounter}`,
+      }
+    );
 
     const draftGW = getCellValue(sheetsDATA.BARANG, "U" + (r + 1));
     const plGW = plCols.gw ? getCellValueRC(sheetPL, rowPL, plCols.gw) : "";
-    onResult("GW", draftGW, plGW, isEqual(draftGW, plGW), {
-      unit: "KG",
-      group: `barang-${barangCounter}`,
-    });
+    onResult(
+      "GW",
+      formatCurr(draftGW),
+      formatCurr(plGW),
+      isEqual(draftGW, plGW),
+      {
+        unit: "KG",
+        group: `barang-${barangCounter}`,
+      }
+    );
 
     const draftCIF = getCellValue(sheetsDATA.BARANG, "Z" + (r + 1));
     const invCIF = invCols.cif
