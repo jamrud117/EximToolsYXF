@@ -2,182 +2,522 @@
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
-    <title>Kelola Mapping Customer</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="../assets/favicon.png" />
-    <link rel="stylesheet" href="../css/mapping.css" />
+    <title>Tambah Customer — YXF Tools</title>
+
+    <!-- Bootstrap 5.3.2 -->
     <link
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <!-- Custom -->
+    <link rel="stylesheet" href="../css/mapping.css" />
   </head>
-  <body>
-    <nav class="main-nav">
-      <div class="nav-container">
-        <div class="nav-logo">YXF Tools</div>
-        <ul class="nav-links">
-          <li><a href="../index.html">Pelaporan Barang</a></li>
-          <li><a href="Extractor.html">Excel Extractor</a></li>
-          <li><a href="sppd.html">Pengecekan Dokumen</a></li>
-          <li><a href="mapping-admin.html">Tambah Customer</a></li>
-          <li><a href="pdf_marker.html">PDF Marker</a></li>
-        </ul>
+
+  <body class="d-flex flex-column min-vh-100">
+    <!-- ═══════════════════════ NAVBAR ═══════════════════════ -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+          <span class="brand-badge">YXF</span>
+          <span class="brand-text">Tools</span>
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navMenu"
+          aria-controls="navMenu"
+          aria-expanded="false"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMenu">
+          <ul class="navbar-nav ms-auto gap-1">
+            <li class="nav-item">
+              <a class="nav-link" href="../index.html">Pelaporan Barang</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="Extractor.html">Excel Extractor</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="sppd.html">Pengecekan Dokumen</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="mapping-admin.html">Tambah Customer</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="pdf_marker.html">PDF Marker</a>
+            </li>
+          </ul>
+        </div>
       </div>
     </nav>
 
-    <!-- ADD NEW CUSTOMER MODAL -->
-    <div class="modal fade" id="addModal" tabindex="-1">
+    <!-- ═══════════════════════ MODAL: TAMBAH ═══════════════════════ -->
+    <div
+      class="modal fade"
+      id="addModal"
+      tabindex="-1"
+      aria-labelledby="addModalLabel"
+      aria-hidden="true"
+    >
       <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-        <div class="modal-content">
+        <div class="modal-content modal-themed">
           <div class="modal-header">
-            <h5 class="modal-title">Tambah Customer Baru</h5>
-            <button class="btn-close" data-bs-dismiss="modal"></button>
+            <div class="modal-title-wrap">
+              <div class="modal-icon">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <line x1="12" y1="5" x2="12" y2="19" />
+                  <line x1="5" y1="12" x2="19" y2="12" />
+                </svg>
+              </div>
+              <h5 class="modal-title mb-0" id="addModalLabel">
+                Tambah Customer Baru
+              </h5>
+            </div>
+            <button
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
           </div>
 
           <div class="modal-body">
-            <label>Customer Name Dropdown</label>
-            <input id="mapPT" class="form-control mb-2" />
+            <div class="modal-note mb-3">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                class="me-1 flex-shrink-0"
+              >
+                <circle cx="12" cy="12" r="10" />
+                <line x1="12" y1="8" x2="12" y2="12" />
+                <line x1="12" y1="16" x2="12.01" y2="16" />
+              </svg>
+              Isi form menggunakan nama header pada file Excel INV &amp; PL.
+            </div>
 
-            <label>Customer Checking</label>
-            <input id="mapCheck" class="form-control mb-2" />
-
-            <label>Address</label>
-            <input id="mapAddress" class="form-control mb-2" />
-
-            <label>Item Code</label>
-            <input id="mapKode" class="form-control mb-2" />
-
-            <label>Item Name</label>
-            <input id="mapUraian" class="form-control mb-2" />
-
-            <label>Quantity</label>
-            <input id="mapQty" class="form-control mb-2" />
-
-            <label>CIF</label>
-            <input id="mapCIF" class="form-control mb-2" />
-
-            <label>Delivery Note</label>
-            <input id="mapSJ" class="form-control mb-2" />
-
-            <label>NPWP</label>
-            <input id="npwp" class="form-control mb-2" maxlength="22" />
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="field-group">
+                  <label class="field-label" for="mapPT"
+                    >Customer Name Dropdown</label
+                  >
+                  <input
+                    id="mapPT"
+                    class="form-control"
+                    placeholder="Nama untuk opsi dropdown"
+                  />
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="field-group">
+                  <label class="field-label" for="mapCheck"
+                    >Customer Checking</label
+                  >
+                  <input
+                    id="mapCheck"
+                    class="form-control"
+                    placeholder="Nama untuk pengecekan"
+                  />
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="field-group">
+                  <label class="field-label" for="mapAddress">Address</label>
+                  <input
+                    id="mapAddress"
+                    class="form-control"
+                    placeholder="Alamat customer"
+                  />
+                </div>
+              </div>
+              <div class="col-12 col-sm-6">
+                <div class="field-group">
+                  <label class="field-label" for="mapKode">Item Code</label>
+                  <input
+                    id="mapKode"
+                    class="form-control"
+                    placeholder="Kode item"
+                  />
+                </div>
+              </div>
+              <div class="col-12 col-sm-6">
+                <div class="field-group">
+                  <label class="field-label" for="mapUraian">Item Name</label>
+                  <input
+                    id="mapUraian"
+                    class="form-control"
+                    placeholder="Nama item"
+                  />
+                </div>
+              </div>
+              <div class="col-12 col-sm-4">
+                <div class="field-group">
+                  <label class="field-label" for="mapQty">Quantity</label>
+                  <input
+                    id="mapQty"
+                    class="form-control"
+                    placeholder="Header qty"
+                  />
+                </div>
+              </div>
+              <div class="col-12 col-sm-4">
+                <div class="field-group">
+                  <label class="field-label" for="mapCIF">CIF</label>
+                  <input
+                    id="mapCIF"
+                    class="form-control"
+                    placeholder="Header CIF"
+                  />
+                </div>
+              </div>
+              <div class="col-12 col-sm-4">
+                <div class="field-group">
+                  <label class="field-label" for="mapSJ">Delivery Note</label>
+                  <input
+                    id="mapSJ"
+                    class="form-control"
+                    placeholder="Header surat jalan"
+                  />
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="field-group">
+                  <label class="field-label" for="npwp">NPWP</label>
+                  <input
+                    id="npwp"
+                    class="form-control"
+                    maxlength="22"
+                    placeholder="NPWP (maks. 22 karakter)"
+                  />
+                </div>
+              </div>
+            </div>
           </div>
 
           <div class="modal-footer">
-            <button class="btn btn-success" onclick="saveMapping()">
-              Save
+            <button class="btn-action btn-action-ghost" data-bs-dismiss="modal">
+              Batal
+            </button>
+            <button
+              class="btn-action btn-action-primary"
+              onclick="saveMapping()"
+            >
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                class="me-1"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Simpan
             </button>
           </div>
         </div>
       </div>
     </div>
 
-    <div class="page-wrapper">
-      <div class="card p-3 mb-2">
-        <h2 class="text-center mb-3">Data Customer</h2>
-        <p class="mb-3 text-danger">
-          *Note : Pengisian form tambah data customer menggunakan nama header
-          pada file excel INV dan PL. Import data customer hanya bisa
-          menggunakan file ber-extensi JSON.
-        </p>
-        <div class="button-wrapper">
-          <button
-            class="btn btn-primary"
-            data-bs-toggle="modal"
-            data-bs-target="#addModal"
-          >
-            + Tambah Data
-          </button>
-          <button class="btn btn-danger" onclick="exportMapping()">
-            Export
-          </button>
-          <button class="btn btn-primary" onclick="importMapping()">
-            Import
-          </button>
-        </div>
-      </div>
-      <div class="table-wrapper">
-        <table class="table table-bordered table-striped mt-3">
-          <thead class="table-dark">
-            <tr>
-              <th>NO</th>
-              <th>CUSTOMER NAME</th>
-              <th>CUSTOMER CHECKING</th>
-              <th>ADDRESS</th>
-              <th>ITEM CODE</th>
-              <th>ITEM NAME</th>
-              <th>QUANTITY</th>
-              <th>CIF</th>
-              <th>DELIVERY NOTE</th>
-              <th>NPWP</th>
-              <th>ACTION</th>
-            </tr>
-          </thead>
-          <tbody id="mappingTable"></tbody>
-        </table>
-      </div>
-
-      <!-- PAGINATION -->
-      <nav class="d-flex justify-content-center">
-        <ul class="pagination" id="pagination"></ul>
-      </nav>
-
-      <div class="modal fade" id="editModal" tabindex="-1">
-        <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
-          <div class="modal-content">
-            <div class="modal-header">
-              <h5 class="modal-title">Edit Data Customer</h5>
-              <button
-                type="button"
-                class="btn-close"
-                data-bs-dismiss="modal"
-              ></button>
+    <!-- ═══════════════════════ MODAL: EDIT ═══════════════════════ -->
+    <div
+      class="modal fade"
+      id="editModal"
+      tabindex="-1"
+      aria-labelledby="editModalLabel"
+      aria-hidden="true"
+    >
+      <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+        <div class="modal-content modal-themed">
+          <div class="modal-header">
+            <div class="modal-title-wrap">
+              <div class="modal-icon">
+                <svg
+                  xmlns="http://www.w3.org/2000/svg"
+                  width="16"
+                  height="16"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  stroke-width="2.5"
+                >
+                  <path
+                    d="M11 4H4a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h14a2 2 0 0 0 2-2v-7"
+                  />
+                  <path
+                    d="M18.5 2.5a2.121 2.121 0 0 1 3 3L12 15l-4 1 1-4 9.5-9.5z"
+                  />
+                </svg>
+              </div>
+              <h5 class="modal-title mb-0" id="editModalLabel">
+                Edit Data Customer
+              </h5>
             </div>
+            <button
+              type="button"
+              class="btn-close btn-close-white"
+              data-bs-dismiss="modal"
+              aria-label="Close"
+            ></button>
+          </div>
 
-            <div class="modal-body">
-              <label>Customer Name Dropdown</label>
-              <input id="editPT" class="form-control mb-2" disabled />
-
-              <label>Customer Checking</label>
-              <input id="editCheck" class="form-control mb-2" disabled />
-
-              <label>Address</label>
-              <input id="editAddress" class="form-control mb-2" />
-
-              <label>Item Code</label>
-              <input id="editKode" class="form-control mb-2" />
-
-              <label>Item Name</label>
-              <input id="editUraian" class="form-control mb-2" />
-
-              <label>Quantity</label>
-              <input id="editQty" class="form-control mb-2" />
-
-              <label>CIF</label>
-              <input id="editCIF" class="form-control mb-2" />
-
-              <label>Delivery Note</label>
-              <input id="editSJ" class="form-control mb-2" />
-
-              <label>Header No / Item No</label>
-              <input id="editNo" class="form-control mb-2" />
-
-              <label>NPWP</label>
-              <input id="editNPWP" class="form-control mb-2" maxlength="22" />
+          <div class="modal-body">
+            <div class="row g-3">
+              <div class="col-12">
+                <div class="field-group">
+                  <label class="field-label" for="editPT"
+                    >Customer Name Dropdown</label
+                  >
+                  <input id="editPT" class="form-control" disabled />
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="field-group">
+                  <label class="field-label" for="editCheck"
+                    >Customer Checking</label
+                  >
+                  <input id="editCheck" class="form-control" disabled />
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="field-group">
+                  <label class="field-label" for="editAddress">Address</label>
+                  <input id="editAddress" class="form-control" />
+                </div>
+              </div>
+              <div class="col-12 col-sm-6">
+                <div class="field-group">
+                  <label class="field-label" for="editKode">Item Code</label>
+                  <input id="editKode" class="form-control" />
+                </div>
+              </div>
+              <div class="col-12 col-sm-6">
+                <div class="field-group">
+                  <label class="field-label" for="editUraian">Item Name</label>
+                  <input id="editUraian" class="form-control" />
+                </div>
+              </div>
+              <div class="col-12 col-sm-4">
+                <div class="field-group">
+                  <label class="field-label" for="editQty">Quantity</label>
+                  <input id="editQty" class="form-control" />
+                </div>
+              </div>
+              <div class="col-12 col-sm-4">
+                <div class="field-group">
+                  <label class="field-label" for="editCIF">CIF</label>
+                  <input id="editCIF" class="form-control" />
+                </div>
+              </div>
+              <div class="col-12 col-sm-4">
+                <div class="field-group">
+                  <label class="field-label" for="editSJ">Delivery Note</label>
+                  <input id="editSJ" class="form-control" />
+                </div>
+              </div>
+              <div class="col-12">
+                <div class="field-group">
+                  <label class="field-label" for="editNPWP">NPWP</label>
+                  <input id="editNPWP" class="form-control" maxlength="22" />
+                </div>
+              </div>
             </div>
+          </div>
 
-            <div class="modal-footer">
-              <button class="btn btn-success" onclick="saveEdit()">Save</button>
-            </div>
+          <div class="modal-footer">
+            <button class="btn-action btn-action-ghost" data-bs-dismiss="modal">
+              Batal
+            </button>
+            <button class="btn-action btn-action-primary" onclick="saveEdit()">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="13"
+                height="13"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2.5"
+                class="me-1"
+              >
+                <polyline points="20 6 9 17 4 12" />
+              </svg>
+              Simpan Perubahan
+            </button>
           </div>
         </div>
       </div>
     </div>
-    <footer class="main-footer">
-      <p>© 2025 YXF Tools — All rights reserved | Made with 💡 by YF</p>
+
+    <!-- ═══════════════════════ MAIN ═══════════════════════ -->
+    <main class="flex-grow-1">
+      <div class="container py-4 py-md-5">
+        <div class="app-wrapper">
+          <!-- PAGE HEADER -->
+          <div class="page-header mb-4">
+            <div class="page-header-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2" />
+                <circle cx="9" cy="7" r="4" />
+                <path d="M23 21v-2a4 4 0 0 0-3-3.87" />
+                <path d="M16 3.13a4 4 0 0 1 0 7.75" />
+              </svg>
+            </div>
+            <div>
+              <h4 class="page-title mb-0">Manajemen Data Customer</h4>
+              <p class="page-subtitle mb-0">
+                Tambah, edit, dan kelola mapping data customer untuk keperluan
+                pengecekan dokumen.
+              </p>
+            </div>
+          </div>
+
+          <!-- ╔══════════════════════════════════╗ -->
+          <!-- ║  SECTION — DATA CUSTOMER TABLE   ║ -->
+          <!-- ╚══════════════════════════════════╝ -->
+          <div class="section-card mb-4">
+            <div class="section-label">
+              <span class="section-icon">🏢</span>
+              Data Customer
+              <span class="ms-auto me-0 d-flex gap-2">
+                <!-- Action buttons in header -->
+                <button
+                  class="btn-header-action btn-header-primary"
+                  data-bs-toggle="modal"
+                  data-bs-target="#addModal"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2.5"
+                  >
+                    <line x1="12" y1="5" x2="12" y2="19" />
+                    <line x1="5" y1="12" x2="19" y2="12" />
+                  </svg>
+                  Tambah
+                </button>
+                <button
+                  class="btn-header-action btn-header-ghost"
+                  onclick="importMapping()"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="7 10 12 15 17 10" />
+                    <line x1="12" y1="15" x2="12" y2="3" />
+                  </svg>
+                  Import
+                </button>
+                <button
+                  class="btn-header-action btn-header-ghost"
+                  onclick="exportMapping()"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="12"
+                    height="12"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                  >
+                    <path d="M21 15v4a2 2 0 01-2 2H5a2 2 0 01-2-2v-4" />
+                    <polyline points="17 8 12 3 7 8" />
+                    <line x1="12" y1="3" x2="12" y2="15" />
+                  </svg>
+                  Export
+                </button>
+              </span>
+            </div>
+
+            <!-- Table -->
+            <div class="card-body-inner p-0">
+              <div class="table-wrap">
+                <table class="data-table">
+                  <thead>
+                    <tr>
+                      <th class="col-no">#</th>
+                      <th>CUSTOMER NAME</th>
+                      <th>CUSTOMER CHECKING</th>
+                      <th>ADDRESS</th>
+                      <th>ITEM CODE</th>
+                      <th>ITEM NAME</th>
+                      <th>QUANTITY</th>
+                      <th>CIF</th>
+                      <th>DELIVERY NOTE</th>
+                      <th>NPWP</th>
+                      <th class="col-action sticky-action">AKSI</th>
+                    </tr>
+                  </thead>
+                  <tbody id="mappingTable"></tbody>
+                </table>
+              </div>
+            </div>
+
+            <!-- Pagination -->
+            <div class="card-footer-bar">
+              <nav aria-label="Navigasi halaman">
+                <ul class="pagination-custom" id="pagination"></ul>
+              </nav>
+            </div>
+          </div>
+        </div>
+        <!-- /.app-wrapper -->
+      </div>
+      <!-- /.container -->
+    </main>
+
+    <!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+    <footer>
+      <span>© 2025 YXF Tools</span>
+      <span class="footer-sep">·</span>
+      <span>All rights reserved</span>
+      <span class="footer-sep">·</span>
+      <span>Made with 💡 by YF</span>
     </footer>
-    <script src="../js/mapping-admin.js"></script>
+
+    <!-- ═══════════════════════ SCRIPTS ══════════════════════ -->
+    <!-- Bootstrap JS must come before custom JS (uses bootstrap.Modal) -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
-    <!-- SweetAlert2 CDN -->
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../js/mapping-admin.js"></script>
   </body>
 </html>

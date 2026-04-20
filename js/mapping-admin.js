@@ -1,5 +1,5 @@
 const page = window.location.pathname.split("/").pop();
-document.querySelectorAll(".nav-links a").forEach((link) => {
+document.querySelectorAll(".navbar-nav .nav-link").forEach((link) => {
   if (link.getAttribute("href") === page) {
     link.classList.add("active");
   }
@@ -100,12 +100,14 @@ function saveMapping() {
   if (modal) modal.hide();
 
   Swal.fire({
-    position: "top-mid",
+    toast: true,
+    position: "top-end",
     icon: "success",
     scrollbarPadding: false,
     title: "Mapping berhasil disimpan!",
     showConfirmButton: false,
     timer: 1500,
+    timerProgressBar: true,
   });
 }
 
@@ -115,7 +117,7 @@ function saveMapping() {
 
 function render() {
   const tbody = document.getElementById("mappingTable");
-  const tableWrapper = document.querySelector(".table-wrapper");
+
   const pagination = document.getElementById("pagination");
 
   const keys = Object.keys(mappings);
@@ -129,14 +131,17 @@ function render() {
   tbody.innerHTML = "";
 
   if (pageKeys.length === 0) {
-    tableWrapper.classList.add("empty");
     tbody.innerHTML = `
-      <tr>
-        <td colspan="11" class="text-center">Tidak ada data</td>
+      <tr class="empty-row">
+        <td colspan="11">
+          <div class="empty-state-inner">
+            <div class="empty-icon">🏢</div>
+            <p>Belum ada data customer — klik <strong>Tambah</strong> untuk menambahkan.</p>
+          </div>
+        </td>
       </tr>
     `;
   } else {
-    tableWrapper.classList.remove("empty");
     pageKeys.forEach((pt, i) => {
       const m = mappings[pt];
       tbody.innerHTML += `
@@ -151,7 +156,7 @@ function render() {
           <td>${m.cif}</td>
           <td>${m.suratjalan || "-"}</td>
           <td>${m.npwp}</td>
-          <td>
+          <td class="sticky-action">
             <button class="btn btn-warning" onclick="openEdit('${pt}')">Edit</button>
             <button class="btn btn-danger" onclick="deleteMapping('${pt}')">Hapus</button>
           </td>
@@ -215,12 +220,14 @@ function saveEdit() {
   bootstrap.Modal.getInstance(document.getElementById("editModal")).hide();
   render();
   Swal.fire({
-    position: "top-mid",
+    toast: true,
+    position: "top-end",
     icon: "success",
     title: "Berhasil edit data!",
     showConfirmButton: false,
     scrollbarPadding: false,
     timer: 1500,
+    timerProgressBar: true,
   });
 }
 function deleteMapping(pt) {
@@ -245,12 +252,15 @@ function deleteMapping(pt) {
       render();
 
       Swal.fire({
+        toast: true,
+        position: "top-end",
         icon: "success",
         title: "Terhapus!",
         scrollbarPadding: false,
         text: `Data "${pt}" berhasil dihapus.`,
         timer: 1500,
         showConfirmButton: false,
+        timerProgressBar: true,
       });
     }
   });
@@ -286,12 +296,14 @@ function importMapping() {
       currentPage = 1;
       render();
       Swal.fire({
-        position: "top-mid",
+        toast: true,
+        position: "top-end",
         icon: "success",
         title: "Berhasil import mapping!",
         scrollbarPadding: false,
         showConfirmButton: false,
         timer: 1500,
+        timerProgressBar: true,
       });
     };
 

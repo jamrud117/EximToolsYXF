@@ -2,7 +2,7 @@
    ACTIVE NAV LINK
 ================================ */
 const currentPage = window.location.pathname.split("/").pop();
-document.querySelectorAll(".nav-links a").forEach((link) => {
+document.querySelectorAll(".navbar-nav .nav-link").forEach((link) => {
   if (link.getAttribute("href") === currentPage) {
     link.classList.add("active");
   }
@@ -26,7 +26,6 @@ function getHariFromTanggal(tgl) {
   if (!tgl) return "";
   const [dd, mm, yyyy] = tgl.split("-").map(Number);
   const dateObj = new Date(yyyy, mm - 1, dd);
-
   const hariList = [
     "Minggu",
     "Senin",
@@ -36,7 +35,6 @@ function getHariFromTanggal(tgl) {
     "Jumat",
     "Sabtu",
   ];
-
   return hariList[dateObj.getDay()];
 }
 
@@ -45,22 +43,17 @@ function getHariFromTanggal(tgl) {
 ================================ */
 function add15Minutes(jamStr) {
   if (!jamStr) return "";
-
-  // deteksi separator: "." atau ":"
   const separator = jamStr.includes(".")
     ? "."
     : jamStr.includes(":")
     ? ":"
     : null;
   if (!separator) return "";
-
   let [hh, mm] = jamStr.split(separator).map(Number);
   if (isNaN(hh) || isNaN(mm)) return "";
-
   let total = hh * 60 + mm + 15;
   hh = Math.floor(total / 60) % 24;
   mm = total % 60;
-
   return `${String(hh).padStart(2, "0")}${separator}${String(mm).padStart(
     2,
     "0"
@@ -81,25 +74,20 @@ let pdfFiles = [];
 window.onload = function () {
   const today = todayDDMMYYYY();
   const todayHari = getHariFromTanggal(today);
-
   ss_tgl.value = today;
   go_tgl.value = today;
-
   ss_hari.value = todayHari;
   go_hari.value = todayHari;
-
   updateBox();
 };
 
 /* ===============================
-   AUTO COPY SS → GO (HARI & TANGGAL SAJA)
+   AUTO COPY SS → GO
 ================================ */
 ss_tgl.addEventListener("input", () => {
   ss_hari.value = getHariFromTanggal(ss_tgl.value);
-
   go_tgl.value = ss_tgl.value;
   go_hari.value = ss_hari.value;
-
   updateBox();
 });
 
@@ -113,11 +101,7 @@ go_tgl.addEventListener("input", () => {
 ================================ */
 ss_jam.addEventListener("input", () => {
   const autoGO = add15Minutes(ss_jam.value);
-
-  if (autoGO) {
-    go_jam.value = autoGO;
-  }
-
+  if (autoGO) go_jam.value = autoGO;
   updateBox();
 });
 
@@ -132,10 +116,114 @@ function updateBox() {
   o_ss_hari.innerText = ss_hari.value;
   o_ss_tgl.innerText = ss_tgl.value;
   o_ss_jam.innerText = ss_jam.value;
-
   o_go_hari.innerText = go_hari.value;
   o_go_tgl.innerText = go_tgl.value;
   o_go_jam.innerText = go_jam.value;
+}
+
+/* ===========================================================
+   ADAPTIVE MARKER POSITIONING
+   
+   Algoritma:
+   1. Kumpulkan semua text item dari PDF beserta koordinat PDF-nya
+   2. Cari semua kemunculan label "c. Alamat" (normalisasi spasi)
+   3. Ambil yang paling bawah secara visual (= PDF Y terkecil)
+   4. Dari Y tersebut, scan ke bawah untuk menemukan baris
+      lanjutan alamat (multi-line) — berhenti saat ketemu
+      label section baru (pola angka/huruf + titik di awal)
+   5. Titik terbawah blok alamat → taruh marker tepat di bawahnya
+      di sisi kanan halaman
+   6. Fallback: 47% tinggi canvas
+=========================================================== */
+function autoPositionMarker(textContent, canvas) {
+  const markerEl = document.getElementById("marker-box");
+
+  // Rasio: canvas element mungkin di-scale oleh CSS (max-width)
+  const displayScaleY = canvas.offsetHeight / canvas.height;
+
+  // Tinggi halaman PDF dalam poin (sama dengan canvas.height karena scale:1)
+  const pdfPageHeight = canvas.height;
+
+  const items = textContent.items;
+
+  /* ── STEP 1: Cari label "c. Alamat" terakhir secara visual ── */
+  // "terakhir secara visual" = Y PDF terkecil (PDF Y-axis: 0=bawah)
+  let lastAlamatPdfY = null;
+
+  for (const item of items) {
+    const normalized = (item.str || "").replace(/\s+/g, "").toLowerCase();
+
+    // Cocokkan variasi: "c.alamat", "c.alamat:", "c.alamat" (dgn/tanpa titik)
+    if (/^c\.?alamat[:\s]?$/.test(normalized) || normalized === "c.alamat") {
+      const y = item.transform[5];
+      if (lastAlamatPdfY === null || y < lastAlamatPdfY) {
+        lastAlamatPdfY = y;
+      }
+    }
+  }
+
+  let markerTopPx;
+
+  if (lastAlamatPdfY !== null) {
+    /* ── STEP 2: Temukan batas bawah blok alamat (multi-line) ── */
+
+    // Pattern label baru: diawali angka/huruf + titik atau kurung
+    // Contoh: "1.", "2.", "a.", "b.", "c.", "d.", "e.", "4.", "5."
+    const newSectionPattern = /^(\d+\.|[a-e]\.|[a-e]\)|\([a-e]\))/i;
+
+    // Kita scan item di bawah lastAlamatPdfY:
+    // - "di bawah" visual = PDF Y lebih kecil dari lastAlamatPdfY
+    // - Batas scan: maksimum 150 poin ke bawah (cukup untuk 3-4 baris)
+    // - Abaikan jika item itu label section baru → tandai blok alamat selesai
+
+    // bottomOfAddress = PDF Y terkecil yang masih bagian dari blok alamat
+    let bottomOfAddress = lastAlamatPdfY;
+
+    // Urutkan item dari Y besar ke kecil (atas ke bawah secara visual)
+    const sortedItems = [...items].sort(
+      (a, b) => b.transform[5] - a.transform[5]
+    );
+
+    // Flag: setelah ketemu firstSectionBelow, hentikan scan
+    let sectionBelowFound = false;
+
+    for (const item of sortedItems) {
+      const y = item.transform[5];
+      const str = (item.str || "").trim();
+
+      if (!str) continue;
+      if (y >= lastAlamatPdfY) continue; // hanya item di bawah alamat
+      if (y < lastAlamatPdfY - 160) break; // terlalu jauh ke bawah, stop
+
+      if (newSectionPattern.test(str)) {
+        // Ini label section baru → blok alamat sudah berakhir sebelum ini
+        sectionBelowFound = true;
+        break;
+      }
+
+      // Masih bagian dari blok alamat (nilai alamat / lanjutan baris)
+      if (y < bottomOfAddress) {
+        bottomOfAddress = y;
+      }
+    }
+
+    /* ── STEP 3: Konversi ke koordinat canvas display ── */
+    // PDF Y (bottom-left origin) → Canvas Y (top-left origin)
+    const canvasPxY = (pdfPageHeight - bottomOfAddress) * displayScaleY;
+
+    // Tambah sedikit padding agar tidak menempel ke teks alamat
+    const PADDING_PX = 6;
+    markerTopPx = canvas.offsetTop + canvasPxY + PADDING_PX;
+  } else {
+    // Fallback jika label "c. Alamat" tidak ditemukan sama sekali
+    markerTopPx = canvas.offsetTop + canvas.offsetHeight * 0.47;
+  }
+
+  /* ── STEP 4: Posisi horizontal — sisi kanan, 52% dari kiri ── */
+  const markerLeftPx = canvas.offsetLeft + canvas.offsetWidth * 0.56;
+
+  markerEl.style.left = Math.round(markerLeftPx) + "px";
+  markerEl.style.top = Math.round(Math.max(0, markerTopPx)) + "px";
 }
 
 /* ===========================================================
@@ -143,7 +231,6 @@ function updateBox() {
 =========================================================== */
 function extractRegFromItems(items) {
   let reg = "";
-
   const trimmed = items.map((i) => (i || "").toString().trim());
 
   let labelIdx = trimmed.findIndex(
@@ -183,11 +270,9 @@ async function extractRegNumberFromBytes(uint8Array) {
 document.getElementById("pdf-file").addEventListener("change", function () {
   const files = Array.from(this.files || []);
   pdfFiles = files;
-
   if (!pdfFiles.length) return;
-
   document.getElementById("marker-box").classList.remove("hidden");
-
+  document.getElementById("previewEmpty").style.display = "none";
   loadFirstPreview(pdfFiles[0]);
 });
 
@@ -207,12 +292,16 @@ function loadFirstPreview(file) {
     canvas.width = currentViewport.width;
     canvas.height = currentViewport.height;
 
-    await page.render({ canvasContext: ctx, viewport: currentViewport });
+    await page.render({ canvasContext: ctx, viewport: currentViewport })
+      .promise;
 
+    // ✅ ADAPTIVE POSITIONING — baca koordinat teks langsung dari PDF
     const textContent = await page.getTextContent();
+    autoPositionMarker(textContent, canvas);
+
     const items = textContent.items.map((i) => i.str || "");
     extractedRegNumber = extractRegFromItems(items);
-    console.log("Nomor Pendaftaran PREVIEW:", extractedRegNumber);
+    console.log("Nomor Pendaftaran:", extractedRegNumber);
   };
 
   reader.readAsArrayBuffer(file);
@@ -281,10 +370,8 @@ async function processSinglePDF(uint8Array) {
   });
 
   const headerSize = 6;
-
   const leftW = helvBold.widthOfTextAtSize("SELESAI STUFFING", headerSize);
   const rightW = helvBold.widthOfTextAtSize("GATE OUT", headerSize);
-
   const headerCenterY = pdfY + boxH - headerH / 2 - headerSize * 0.35;
 
   page.drawText("SELESAI STUFFING", {
@@ -313,20 +400,13 @@ async function processSinglePDF(uint8Array) {
     const y = baseY - (rowIndex * rowGapPx) / s;
     const labelWidthPx = 30;
 
-    page.drawText(label, {
-      x: colX,
-      y,
-      size: bodySize,
-      font: helvBold,
-    });
-
+    page.drawText(label, { x: colX, y, size: bodySize, font: helvBold });
     page.drawText(":", {
       x: colX + labelWidthPx / s,
       y,
       size: bodySize,
       font: helvFont,
     });
-
     if (value) {
       page.drawText(value, {
         x: colX + (labelWidthPx + 7) / s,
@@ -337,12 +417,10 @@ async function processSinglePDF(uint8Array) {
     }
   }
 
-  // SS
   drawRow(baseXLeft, 0, "Hari", ss_hari.value);
   drawRow(baseXLeft, 1, "Tanggal", ss_tgl.value);
   drawRow(baseXLeft, 2, "Jam", ss_jam.value);
 
-  // GO
   drawRow(baseXRight, 0, "Hari", go_hari.value);
   drawRow(baseXRight, 1, "Tanggal", go_tgl.value);
   drawRow(baseXRight, 2, "Jam", go_jam.value);
@@ -358,7 +436,6 @@ async function downloadAllPDF() {
     alert("Upload beberapa file PDF terlebih dahulu.");
     return;
   }
-
   if (!currentViewport) {
     alert("Tunggu sampai preview PDF pertama tampil terlebih dahulu.");
     return;
@@ -376,17 +453,14 @@ async function downloadAllPDF() {
       } catch {}
 
       const processedBytes = await processSinglePDF(uint8Array);
-
       const baseName =
         regNumber && regNumber !== "UNKNOWN"
           ? regNumber
           : file.name.replace(/\.pdf$/i, "");
-
       const safeName = baseName.replace(/[\\/:*?"<>|]/g, "-") + ".pdf";
 
       const blob = new Blob([processedBytes], { type: "application/pdf" });
       const url = URL.createObjectURL(blob);
-
       const a = document.createElement("a");
       a.href = url;
       a.download = `SPPB_${safeName}`;
@@ -394,7 +468,6 @@ async function downloadAllPDF() {
       a.click();
       a.remove();
       URL.revokeObjectURL(url);
-
       return;
     }
 
@@ -411,20 +484,16 @@ async function downloadAllPDF() {
       } catch {}
 
       const processedBytes = await processSinglePDF(uint8Array);
-
       const baseName =
         regNumber && regNumber !== "UNKNOWN"
           ? regNumber
           : file.name.replace(/\.pdf$/i, "");
-
       const safeName = baseName.replace(/[\\/:*?"<>|]/g, "-") + ".pdf";
-
       zip.file(`SPPB_${safeName}`, processedBytes);
     }
 
     const zipBlob = await zip.generateAsync({ type: "blob" });
     const url = URL.createObjectURL(zipBlob);
-
     const a = document.createElement("a");
     a.href = url;
     a.download = "SPPB_MARKED_ALL.zip";
@@ -439,7 +508,7 @@ async function downloadAllPDF() {
 }
 
 /* ===============================
-   PRINT PREVIEW (MODAL) – MULTI FILE
+   PRINT PREVIEW (MODAL)
 ================================ */
 let previewBlobUrl = null;
 let previewIndex = 0;
@@ -449,13 +518,11 @@ async function previewPDFModal(index = 0) {
     alert("Upload PDF terlebih dahulu.");
     return;
   }
-
   if (!currentViewport) {
     alert("Tunggu preview PDF siap.");
     return;
   }
 
-  // jaga index tetap valid
   if (index < 0) index = 0;
   if (index >= pdfFiles.length) index = pdfFiles.length - 1;
   previewIndex = index;
@@ -472,11 +539,9 @@ async function previewPDFModal(index = 0) {
 
     const processedBytes = await processSinglePDF(uint8Array);
     const blob = new Blob([processedBytes], { type: "application/pdf" });
-
     previewBlobUrl = URL.createObjectURL(blob);
 
     document.getElementById("pdf-preview-frame").src = previewBlobUrl;
-
     new bootstrap.Modal(document.getElementById("printPreviewModal")).show();
   } catch (err) {
     console.error(err);
@@ -489,7 +554,6 @@ async function previewAllMergedPDF() {
     alert("Upload PDF terlebih dahulu.");
     return;
   }
-
   if (!currentViewport) {
     alert("Tunggu preview PDF siap.");
     return;
@@ -506,7 +570,6 @@ async function previewAllMergedPDF() {
 
       const processedBytes = await processSinglePDF(uint8Array);
       const tempPdf = await PDFLib.PDFDocument.load(processedBytes);
-
       const copiedPages = await mergedPdf.copyPages(
         tempPdf,
         tempPdf.getPageIndices()
@@ -516,10 +579,9 @@ async function previewAllMergedPDF() {
 
     const finalBytes = await mergedPdf.save();
     const blob = new Blob([finalBytes], { type: "application/pdf" });
-
     previewBlobUrl = URL.createObjectURL(blob);
-    document.getElementById("pdf-preview-frame").src = previewBlobUrl;
 
+    document.getElementById("pdf-preview-frame").src = previewBlobUrl;
     new bootstrap.Modal(document.getElementById("printPreviewModal")).show();
   } catch (err) {
     console.error(err);

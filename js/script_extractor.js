@@ -2,7 +2,7 @@
 // NAVBAR HIGHLIGHT
 // =========================================
 const currentPage = window.location.pathname.split("/").pop();
-document.querySelectorAll(".nav-links a").forEach((link) => {
+document.querySelectorAll(".navbar-nav .nav-link").forEach((link) => {
   if (link.getAttribute("href") === currentPage) {
     link.classList.add("active");
   }
@@ -253,7 +253,7 @@ function processWorkbook(wb) {
     barangCols.map((c) => (c === "NO" ? i + 1 : r[idx(c)] ?? ""))
   );
 
-  document.getElementById("barangCard").style.display = "block";
+  document.getElementById("barangCard").classList.remove("d-none");
   document.getElementById("barangTableWrap").innerHTML = buildTable(
     barangCols,
     barangRows
@@ -332,7 +332,7 @@ function processWorkbook(wb) {
   });
 
   const wrap = document.getElementById("ekstraksiTableWrap");
-  document.getElementById("ekstraksiCard").style.display = "block";
+  document.getElementById("ekstraksiCard").classList.remove("d-none");
 
   fadeUpdate(wrap, buildTable(ekstraksiCols, currentEkstrRows, true), () => {
     attachCopyButtons("ekstraksiTableWrap", currentEkstrRows);

@@ -4,79 +4,255 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <link rel="icon" type="image/png" href="../assets/favicon.png" />
-    <title>Excel Extractor</title>
-    <link rel="stylesheet" href="../css/style_extractor.css" />
+    <title>Excel Extractor — YXF Tools</title>
+
+    <!-- Bootstrap 5.3.2 -->
+    <link
+      href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
+      rel="stylesheet"
+    />
+    <!-- XLSX -->
     <script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+    <!-- Custom -->
+    <link rel="stylesheet" href="../css/style_extractor.css" />
   </head>
-  <body>
-    <div class="page-wrapper">
-      <!-- 🌐 NAVBAR -->
-      <nav class="main-nav">
-        <div class="nav-container">
-          <div class="nav-logo">YXF Tools</div>
-          <ul class="nav-links">
-            <li><a href="../index.html">Pelaporan Barang</a></li>
-            <li><a href="Extractor.html">Excel Extractor</a></li>
-            <li><a href="sppd.html">Pengecekan Dokumen</a></li>
-            <li><a href="mapping-admin.html">Tambah Customer</a></li>
-            <li><a href="pdf_marker.html">PDF Marker</a></li>
+
+  <body class="d-flex flex-column min-vh-100">
+    <!-- ═══════════════════════ NAVBAR ═══════════════════════ -->
+    <nav class="navbar navbar-expand-lg navbar-dark">
+      <div class="container-fluid">
+        <a class="navbar-brand" href="#">
+          <span class="brand-badge">YXF</span>
+          <span class="brand-text">Tools</span>
+        </a>
+        <button
+          class="navbar-toggler"
+          type="button"
+          data-bs-toggle="collapse"
+          data-bs-target="#navMenu"
+          aria-controls="navMenu"
+          aria-expanded="false"
+        >
+          <span class="navbar-toggler-icon"></span>
+        </button>
+        <div class="collapse navbar-collapse" id="navMenu">
+          <ul class="navbar-nav ms-auto gap-1">
+            <li class="nav-item">
+              <a class="nav-link" href="../index.html">Pelaporan Barang</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="Extractor.html">Excel Extractor</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="sppd.html">Pengecekan Dokumen</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="mapping-admin.html">Tambah Customer</a>
+            </li>
+            <li class="nav-item">
+              <a class="nav-link" href="pdf_marker.html">PDF Marker</a>
+            </li>
           </ul>
         </div>
-      </nav>
+      </div>
+    </nav>
 
-      <!-- 🌐 MAIN CONTENT -->
-      <main>
-        <h1>📊 Excel Extractor</h1>
-
-        <div id="headerCard" class="card">
-          <div class="upload-section">
-            <label class="label-file">Silahkan Inputkan File Excel Anda:</label>
-            <input type="file" id="fileInput" accept=".xls,.xlsx" />
-          </div>
-
-          <h3>HEADER</h3>
-          <div id="headerContent">
-            <em>Belum ada data. Silakan unggah file Excel.</em>
-          </div>
-        </div>
-
-        <div id="barangCard" class="card" style="display: none">
-          <h3>Data Barang</h3>
-          <div id="barangTableWrap" class="preview"></div>
-        </div>
-
-        <div id="ekstraksiCard" class="card" style="display: none">
-          <h3>Data Ekstraksi</h3>
-          <div class="content">
-            <div class="quantity-section">
-              <input
-                type="text"
-                id="quantityInput"
-                placeholder="Masukkan Quantity"
-                name="quantityInput"
-              />
-              <div class="btn-wrap">
-                <button id="applyQuantityBtn">Apply</button>
-                <button id="resetBtn">Reset</button>
-              </div>
+    <!-- ═══════════════════════ MAIN ═══════════════════════ -->
+    <main class="flex-grow-1">
+      <div class="container py-4 py-md-5">
+        <div class="app-wrapper">
+          <!-- PAGE HEADER -->
+          <div class="page-header mb-4">
+            <div class="page-header-icon">
+              <svg
+                xmlns="http://www.w3.org/2000/svg"
+                width="22"
+                height="22"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="2"
+                stroke-linecap="round"
+                stroke-linejoin="round"
+              >
+                <rect x="3" y="3" width="18" height="18" rx="2" />
+                <path d="M3 9h18M3 15h18M9 3v18" />
+              </svg>
             </div>
             <div>
-              <label>Pilih Barang:</label>
-              <select id="barangSelect"></select>
+              <h4 class="page-title mb-0">Excel Extractor</h4>
+              <p class="page-subtitle mb-0">
+                Upload file Excel BC, ekstrak data header dan barang secara
+                otomatis.
+              </p>
             </div>
           </div>
-          <div id="ekstraksiTableWrap" class="preview fade-in"></div>
+
+          <!-- ╔══════════════════════════════════╗ -->
+          <!-- ║  SECTION 1 — UPLOAD & HEADER     ║ -->
+          <!-- ╚══════════════════════════════════╝ -->
+          <div class="section-card mb-4" id="headerCard">
+            <div class="section-label">
+              <span class="section-icon">📁</span> Upload File &amp; Informasi
+              Header
+            </div>
+            <div class="card-body-inner">
+              <!-- Upload Zone -->
+              <div class="upload-zone mb-4" id="uploadZone">
+                <div class="upload-icon">
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    width="28"
+                    height="28"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="1.8"
+                  >
+                    <polyline points="16 16 12 12 8 16" />
+                    <line x1="12" y1="12" x2="12" y2="21" />
+                    <path
+                      d="M20.39 18.39A5 5 0 0 0 18 9h-1.26A8 8 0 1 0 3 16.3"
+                    />
+                  </svg>
+                </div>
+                <div>
+                  <p class="upload-hint">
+                    Klik untuk memilih file <strong>.xlsx / .xls</strong>
+                  </p>
+                  <p class="upload-sub">
+                    Data header dan barang akan diekstrak otomatis
+                  </p>
+                </div>
+                <input
+                  type="file"
+                  id="fileInput"
+                  accept=".xls,.xlsx"
+                  class="upload-input"
+                />
+              </div>
+
+              <!-- Header Result -->
+              <div id="headerContent">
+                <div class="result-empty">
+                  <div class="result-empty-icon">📄</div>
+                  <p>
+                    Belum ada data — silakan unggah file Excel untuk memulai.
+                  </p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ╔══════════════════════════════════╗ -->
+          <!-- ║  SECTION 2 — DATA BARANG         ║ -->
+          <!-- ╚══════════════════════════════════╝ -->
+          <div class="section-card mb-4 d-none" id="barangCard">
+            <div class="section-label">
+              <span class="section-icon">📦</span> Data Barang
+            </div>
+            <div class="card-body-inner p-0">
+              <div id="barangTableWrap" class="table-wrap"></div>
+            </div>
+          </div>
+
+          <!-- ╔══════════════════════════════════╗ -->
+          <!-- ║  SECTION 3 — DATA EKSTRAKSI      ║ -->
+          <!-- ╚══════════════════════════════════╝ -->
+          <div class="section-card mb-5 d-none" id="ekstraksiCard">
+            <div class="section-label">
+              <span class="section-icon">🧮</span> Data Ekstraksi
+            </div>
+            <div class="card-body-inner">
+              <!-- Controls row -->
+              <div class="row g-3 mb-3 align-items-end">
+                <div class="col-12 col-md-5 col-lg-4">
+                  <div class="field-group">
+                    <label class="field-label" for="barangSelect"
+                      >Pilih Barang</label
+                    >
+                    <select id="barangSelect" class="form-select"></select>
+                  </div>
+                </div>
+                <div class="col-12 col-md-4 col-lg-3">
+                  <div class="field-group">
+                    <label class="field-label" for="quantityInput"
+                      >Quantity Override</label
+                    >
+                    <input
+                      type="text"
+                      id="quantityInput"
+                      class="form-control"
+                      placeholder="Masukkan Quantity"
+                      name="quantityInput"
+                    />
+                  </div>
+                </div>
+                <div class="col-12 col-md-auto">
+                  <div class="d-flex gap-2">
+                    <button
+                      id="applyQuantityBtn"
+                      class="btn-action btn-action-primary flex-grow-1 flex-md-grow-0"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2.5"
+                        class="me-1"
+                      >
+                        <polyline points="20 6 9 17 4 12" />
+                      </svg>
+                      Apply
+                    </button>
+                    <button
+                      id="resetBtn"
+                      class="btn-action btn-action-ghost flex-grow-1 flex-md-grow-0"
+                    >
+                      <svg
+                        xmlns="http://www.w3.org/2000/svg"
+                        width="13"
+                        height="13"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        class="me-1"
+                      >
+                        <polyline points="1 4 1 10 7 10" />
+                        <path d="M3.51 15a9 9 0 1 0 .49-3.05" />
+                      </svg>
+                      Reset
+                    </button>
+                  </div>
+                </div>
+              </div>
+
+              <!-- Ekstraksi Table -->
+              <div id="ekstraksiTableWrap" class="table-wrap fade-in"></div>
+            </div>
+          </div>
         </div>
-      </main>
+        <!-- /.app-wrapper -->
+      </div>
+      <!-- /.container -->
+    </main>
 
-      <!-- 🌙 FOOTER -->
-      <footer class="main-footer">
-        <p>© 2025 YXF Tools — All rights reserved | Made with 💡 by YF</p>
-      </footer>
-    </div>
+    <!-- ═══════════════════════ FOOTER ═══════════════════════ -->
+    <footer>
+      <span>© 2025 YXF Tools</span>
+      <span class="footer-sep">·</span>
+      <span>All rights reserved</span>
+      <span class="footer-sep">·</span>
+      <span>Made with 💡 by YF</span>
+    </footer>
 
-    <script src="../js/script_extractor.js"></script>
-    <!-- SweetAlert2 CDN -->
+    <!-- ═══════════════════════ SCRIPTS ══════════════════════ -->
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="../js/script_extractor.js"></script>
   </body>
 </html>
