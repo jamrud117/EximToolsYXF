@@ -7,7 +7,7 @@ const TableRenderer = (() => {
   let _tbody = null;
 
   function _getOrCreateTbody() {
-    if (!_tbody) _tbody = document.querySelector('#resultTable tbody');
+    if (!_tbody) _tbody = document.querySelector("#resultTable tbody");
     return _tbody;
   }
 
@@ -43,7 +43,7 @@ const TableRenderer = (() => {
 
   function clearTable() {
     const tbody = _getOrCreateTbody();
-    tbody.innerHTML = '';
+    tbody.innerHTML = "";
     _tbody = tbody; // re-cache after innerHTML clear
   }
 
@@ -51,9 +51,9 @@ const TableRenderer = (() => {
 
   function addSectionHeader(type, label) {
     const tbody = _getOrCreateTbody();
-    const tr    = document.createElement('tr');
-    tr.classList.add('fw-bold', `${type}-header`);
-    tr.setAttribute('aria-expanded', 'false');
+    const tr = document.createElement("tr");
+    tr.classList.add("fw-bold", `${type}-header`);
+    tr.setAttribute("aria-expanded", "false");
     tr.innerHTML = `
       <td colspan="4">
         <span class="collapse-icon">
@@ -67,7 +67,7 @@ const TableRenderer = (() => {
   }
 
   function addBarangHeader(counter) {
-    addSectionHeader('barang', `BARANG KE ${counter}`);
+    addSectionHeader("barang", `BARANG KE ${counter}`);
   }
 
   // ── Result rows ───────────────────────────────────────────
@@ -89,16 +89,16 @@ const TableRenderer = (() => {
    */
   function addResult(check, value, ref, isMatch, options = {}) {
     const {
-      isQty      = false,
-      unit       = '',
-      unitForRef  = unit,
+      isQty = false,
+      unit = "",
+      unitForRef = unit,
       unitForData = unit,
-      group      = 'general',
-      isSpecial  = false,
+      group = "general",
+      isSpecial = false,
     } = options;
 
     const tbody = _getOrCreateTbody();
-    const row   = document.createElement('tr');
+    const row = document.createElement("tr");
 
     const statusBadge = isMatch
       ? '<span class="badge-match">Sama</span>'
@@ -107,19 +107,21 @@ const TableRenderer = (() => {
     if (isSpecial) {
       row.innerHTML = `
         <td>${check}</td>
-        <td>${value ?? ''}</td>
-        <td>${ref ?? ''}</td>
+        <td>${value ?? ""}</td>
+        <td>${ref ?? ""}</td>
         <td class="result-cell">${statusBadge}</td>`;
     } else {
       const effectiveUnitForData = unitForData || unitForRef;
-      let leftRaw  = String(formatValue(value, isQty, effectiveUnitForData)).replace(/\s*-\s*/g, '-');
-      let rightRaw = String(formatValue(ref,   isQty, unitForRef)).replace(/\s*-\s*/g, '-');
+      let leftRaw = `${value ?? ""}${
+        effectiveUnitForData ? " " + effectiveUnitForData : ""
+      }`;
+      let rightRaw = `${ref ?? ""}${unitForRef ? " " + unitForRef : ""}`;
 
-      let leftHTML  = leftRaw;
+      let leftHTML = leftRaw;
       let rightHTML = rightRaw;
 
       if (!isMatch) {
-        leftHTML  = diffText(leftRaw, rightRaw, false);
+        leftHTML = diffText(leftRaw, rightRaw, false);
         rightHTML = diffText(leftRaw, rightRaw, true);
       }
 
@@ -130,7 +132,7 @@ const TableRenderer = (() => {
         <td class="result-cell">${statusBadge}</td>`;
     }
 
-    row.classList.add(isMatch ? 'match' : 'mismatch', group);
+    row.classList.add(isMatch ? "match" : "mismatch", group);
     tbody.appendChild(row);
   }
 
@@ -144,30 +146,35 @@ const TableRenderer = (() => {
     const tbody = _getOrCreateTbody();
 
     const STOP_CLASSES = {
-      'exbc-header':    ['exbc-header', 'general-header', 'barang-header'],
-      'general-header': ['general-header', 'barang-header'],
-      'barang-header':  ['barang-header', 'exbc-header', 'general-header'],
+      "exbc-header": ["exbc-header", "general-header", "barang-header"],
+      "general-header": ["general-header", "barang-header"],
+      "barang-header": ["barang-header", "exbc-header", "general-header"],
     };
 
     // Prevent double-binding
     if (tbody.dataset.collapsibleBound) return;
-    tbody.dataset.collapsibleBound = '1';
+    tbody.dataset.collapsibleBound = "1";
 
-    tbody.addEventListener('click', (e) => {
-      const header = e.target.closest('.exbc-header, .general-header, .barang-header');
+    tbody.addEventListener("click", (e) => {
+      const header = e.target.closest(
+        ".exbc-header, .general-header, .barang-header"
+      );
       if (!header) return;
 
-      const isOpen   = header.getAttribute('aria-expanded') === 'true';
-      const stopList = STOP_CLASSES[
-        ['exbc-header', 'general-header', 'barang-header'].find(c => header.classList.contains(c))
-      ] || [];
+      const isOpen = header.getAttribute("aria-expanded") === "true";
+      const stopList =
+        STOP_CLASSES[
+          ["exbc-header", "general-header", "barang-header"].find((c) =>
+            header.classList.contains(c)
+          )
+        ] || [];
 
-      header.setAttribute('aria-expanded', isOpen ? 'false' : 'true');
-      header.classList.toggle('open', !isOpen);
+      header.setAttribute("aria-expanded", isOpen ? "false" : "true");
+      header.classList.toggle("open", !isOpen);
 
       let next = header.nextElementSibling;
-      while (next && !stopList.some(cls => next.classList.contains(cls))) {
-        next.classList.toggle('row-collapsed', isOpen ? false : true);
+      while (next && !stopList.some((cls) => next.classList.contains(cls))) {
+        next.classList.toggle("row-collapsed", isOpen ? false : true);
         next = next.nextElementSibling;
       }
     });
@@ -176,27 +183,39 @@ const TableRenderer = (() => {
   // ── Filter ────────────────────────────────────────────────
 
   function applyFilter(filterValue) {
-    const HEADER_CLASSES = ['barang-header', 'general-header', 'exbc-header'];
-    const rows = document.querySelectorAll('#resultTable tbody tr');
+    const HEADER_CLASSES = ["barang-header", "general-header", "exbc-header"];
+    const rows = document.querySelectorAll("#resultTable tbody tr");
 
-    rows.forEach(row => {
+    rows.forEach((row) => {
       // Section headers always visible
-      if (HEADER_CLASSES.some(cls => row.classList.contains(cls))) {
-        row.style.display = '';
+      if (HEADER_CLASSES.some((cls) => row.classList.contains(cls))) {
+        row.style.display = "";
         return;
       }
 
       switch (filterValue) {
-        case 'sama':
-          row.style.display = row.classList.contains('match')    ? '' : 'none'; break;
-        case 'beda':
-          row.style.display = row.classList.contains('mismatch') ? '' : 'none'; break;
+        case "sama":
+          row.style.display = row.classList.contains("match") ? "" : "none";
+          break;
+        case "beda":
+          row.style.display = row.classList.contains("mismatch") ? "" : "none";
+          break;
         default:
-          row.style.display = ''; break;
+          row.style.display = "";
+          break;
       }
     });
   }
 
   // ── Public API ────────────────────────────────────────────
-  return { showLoadingState, showEmptyState, clearTable, addSectionHeader, addBarangHeader, addResult, bindCollapsibles, applyFilter };
+  return {
+    showLoadingState,
+    showEmptyState,
+    clearTable,
+    addSectionHeader,
+    addBarangHeader,
+    addResult,
+    bindCollapsibles,
+    applyFilter,
+  };
 })();
