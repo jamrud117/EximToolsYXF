@@ -189,8 +189,13 @@ body::-webkit-scrollbar {
   background: var(--primary-light);
   cursor: pointer;
   transition: all 0.2s ease;
+  transition: background-color 0.2s, border-color 0.2s;
 }
-
+.upload-zone.drag-over {
+  background-color: #eff6ff;
+  border-color: #3b82f6;
+  border-style: dashed;
+}
 .upload-zone:hover {
   border-color: var(--accent);
   background: rgba(59, 130, 246, 0.06);

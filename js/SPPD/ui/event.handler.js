@@ -137,6 +137,52 @@ function bindCheckButton() {
   });
 }
 
+const uploadZone = document.getElementById("uploadZone");
+const fileInput = document.getElementById("files");
+
+// Klik zona → buka file picker
+uploadZone.addEventListener("click", () => fileInput.click());
+
+// Drag events
+uploadZone.addEventListener("dragenter", (e) => {
+  e.preventDefault();
+  uploadZone.classList.add("drag-over");
+});
+
+uploadZone.addEventListener("dragover", (e) => {
+  e.preventDefault(); // wajib agar drop bisa terjadi
+  uploadZone.classList.add("drag-over");
+});
+
+uploadZone.addEventListener("dragleave", (e) => {
+  // Cek agar tidak trigger saat hover ke child element
+  if (!uploadZone.contains(e.relatedTarget)) {
+    uploadZone.classList.remove("drag-over");
+  }
+});
+
+uploadZone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  uploadZone.classList.remove("drag-over");
+
+  const droppedFiles = Array.from(e.dataTransfer.files).filter(
+    (f) => f.name.endsWith(".xlsx") || f.name.endsWith(".xls")
+  );
+
+  if (droppedFiles.length === 0) {
+    alert("Hanya file .xlsx / .xls yang diterima.");
+    return;
+  }
+
+  // Masukkan ke input file agar handler yang sudah ada tetap berjalan
+  const dataTransfer = new DataTransfer();
+  droppedFiles.forEach((f) => dataTransfer.items.add(f));
+  fileInput.files = dataTransfer.files;
+
+  // Trigger change event supaya listener lain ikut jalan
+  fileInput.dispatchEvent(new Event("change", { bubbles: true }));
+});
+
 // ── Main process orchestrator ─────────────────────────────────
 async function processFiles(files, parsedExBC) {
   let sheetPL = null;
