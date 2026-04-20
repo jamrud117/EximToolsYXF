@@ -28,52 +28,154 @@ function readExcelFile(file) {
 /**
  * Detect whether a workbook is DATA (Draft EXIM), PL, or INV.
  */
-function detectFileType(wb) {
-  const names = wb.SheetNames.map((n) => n.toUpperCase());
+function detectFileType(wb, debug = true) {
+  const names = wb.SheetNames.map((n) => n.toUpperCase().trim());
+  const has = (key) => names.some((n) => n.includes(key));
 
-  // Cek DATA (Draft EXIM)
+  if (debug) {
+    console.group("📁 DETECT FILE TYPE");
+    console.log("Sheet Names:", names);
+  }
+
+  // ===== DATA DETECTION =====
+  const dataCheck = {
+    HEADER: has("HEADER"),
+    BARANG: has("BARANG"),
+    KEMASAN: has("KEMASAN"),
+    DOKUMEN: has("DOKUMEN"),
+  };
+
+  if (debug) console.log("DATA Check:", dataCheck);
+
   if (
-    names.includes("HEADER") &&
-    names.includes("BARANG") &&
-    names.includes("KEMASAN") &&
-    names.includes("DOKUMEN")
-  )
+    dataCheck.HEADER &&
+    dataCheck.BARANG &&
+    dataCheck.KEMASAN &&
+    dataCheck.DOKUMEN
+  ) {
+    if (debug) {
+      console.log("✅ RESULT: DATA");
+      console.groupEnd();
+    }
     return "DATA";
-
-  const firstSheet = wb.Sheets[wb.SheetNames[0]];
-  if (!firstSheet || !firstSheet["!ref"]) return "UNKNOWN";
-
-  const range = XLSX.utils.decode_range(firstSheet["!ref"]);
-  const maxRow = Math.min(range.e.r, 30);
-  const maxCol = Math.min(range.e.c, 20);
+  }
 
   let scoreINV = 0;
   let scorePL = 0;
 
-  for (let r = range.s.r; r <= maxRow; r++) {
-    for (let c = range.s.c; c <= maxCol; c++) {
-      const cell = firstSheet[XLSX.utils.encode_cell({ r, c })];
-      if (!cell || typeof cell.v !== "string") continue;
-      const v = cell.v.toUpperCase();
+  const foundKeywords = {
+    INV: [],
+    PL: [],
+  };
 
-      // PL signals
-      if (v.includes("PACKING LIST")) scorePL += 3;
-      if (v.includes("KEMASAN")) scorePL += 2;
-      if (v === "GW" || v.includes("GROSS WEIGHT")) scorePL += 2;
-      if (v === "NW" || v.includes("NET WEIGHT")) scorePL += 2;
+  const MIN_SCORE = 4;
 
-      // INV signals
-      if (v.includes("INVOICE") && !v.includes("PACKING")) scoreINV += 2;
-      if (v.includes("UNIT PRICE") || v.includes("HARGA")) scoreINV += 2;
-      if (v.includes("AMOUNT") || v.includes("TOTAL")) scoreINV += 1;
+  // ===== SCAN ALL SHEETS =====
+  for (const sheetName of wb.SheetNames) {
+    const sheet = wb.Sheets[sheetName];
+    if (!sheet || !sheet["!ref"]) {
+      if (debug) console.warn(`⚠️ Sheet ${sheetName} kosong`);
+      continue;
+    }
+
+    const range = XLSX.utils.decode_range(sheet["!ref"]);
+    const maxRow = Math.min(range.e.r, 30);
+    const maxCol = Math.min(range.e.c, 20);
+
+    if (debug) {
+      console.log(
+        `🔍 Scan Sheet: ${sheetName} (Row ${range.s.r}-${maxRow}, Col ${range.s.c}-${maxCol})`
+      );
+    }
+
+    for (let r = range.s.r; r <= maxRow; r++) {
+      for (let c = range.s.c; c <= maxCol; c++) {
+        const cell = sheet[XLSX.utils.encode_cell({ r, c })];
+        if (!cell || cell.v == null) continue;
+
+        const v = String(cell.v).toUpperCase().trim();
+        const isHeaderRow = r < 5;
+
+        // ===== NORMALISASI =====
+        const normalized = v.replace(/\./g, "").replace(/\s+/g, " ");
+
+        // ===== PL (Packing List) =====
+        if (normalized.includes("PACKING LIST")) {
+          scorePL += isHeaderRow ? 10 : 5;
+          foundKeywords.PL.push(v);
+        }
+
+        if (normalized.includes("NO KONTRAK")) {
+          scorePL += isHeaderRow ? 8 : 4;
+          foundKeywords.PL.push(v);
+        }
+
+        if (normalized.includes("KEMASAN")) {
+          scorePL += 3;
+          foundKeywords.PL.push(v);
+        }
+
+        if (normalized.includes("GROSS WEIGHT") || normalized === "GW") {
+          scorePL += 2;
+          foundKeywords.PL.push(v);
+        }
+
+        if (normalized.includes("NET WEIGHT") || normalized === "NW") {
+          scorePL += 2;
+          foundKeywords.PL.push(v);
+        }
+
+        // ===== INV (Invoice) =====
+        if (normalized.includes("INVOICE")) {
+          scoreINV += isHeaderRow ? 10 : 5;
+          foundKeywords.INV.push(v);
+        }
+
+        if (normalized.includes("UNIT PRICE") || normalized.includes("HARGA")) {
+          scoreINV += 3;
+          foundKeywords.INV.push(v);
+        }
+
+        if (normalized === "AMOUNT") {
+          scoreINV += 1;
+          foundKeywords.INV.push(v);
+        }
+      }
     }
   }
 
-  if (scorePL > scoreINV) return "PL";
-  if (scoreINV > 0) return "INV";
-  return "UNKNOWN";
-}
+  if (debug) {
+    console.log("📊 Score INV:", scoreINV);
+    console.log("📊 Score PL:", scorePL);
+    console.log("🔎 Found INV keywords:", foundKeywords.INV.slice(0, 10));
+    console.log("🔎 Found PL keywords:", foundKeywords.PL.slice(0, 10));
+  }
 
+  // ===== FINAL DECISION =====
+  let result = "UNKNOWN";
+
+  if (scorePL >= MIN_SCORE && scorePL > scoreINV) {
+    result = "PL";
+  } else if (scoreINV >= MIN_SCORE && scoreINV > scorePL) {
+    result = "INV";
+  }
+
+  if (debug) {
+    console.log("📊 FINAL COMPARISON:", {
+      scoreINV,
+      scorePL,
+      result,
+    });
+
+    if (result === "UNKNOWN") {
+      console.warn("❗ Tidak cukup kuat untuk menentukan tipe file");
+    }
+
+    console.groupEnd();
+  }
+
+  return result;
+}
 // ── Low-level cell accessors ─────────────────────────────────
 
 function getCellValue(sheet, cell) {
