@@ -222,24 +222,24 @@ async function runChecks({
   const kemasanDataMapped = mapPackagingUnit(kemasanUnitData);
   onResult(
     "Total Kemasan",
-    `${kemasanQtyData} ${kemasanDataMapped}`,
-    `${kemasanSum} ${kemasanUnitMapped}`,
+    `${formatCurr(kemasanQtyData)} ${kemasanDataMapped}`,
+    `${formatCurr(kemasanSum)} ${kemasanUnitMapped}`,
     isEqual(kemasanQtyData, kemasanSum) &&
       kemasanUnitMapped === kemasanDataMapped,
     { isQty: true }
   );
 
   onResult(
-    "Brutto",
-    getCellValue(sheetsDATA.HEADER, "CB2"),
-    bruttoSum,
+    "Bruto",
+    formatCurr(getCellValue(sheetsDATA.HEADER, "CB2")),
+    formatCurr(bruttoSum),
     isEqual(getCellValue(sheetsDATA.HEADER, "CB2"), bruttoSum),
     { unit: "KG" }
   );
   onResult(
     "Netto",
-    getCellValue(sheetsDATA.HEADER, "CC2"),
-    nettoSum,
+    formatCurr(getCellValue(sheetsDATA.HEADER, "CC2")),
+    formatCurr(nettoSum),
     isEqual(getCellValue(sheetsDATA.HEADER, "CC2"), nettoSum),
     { unit: "KG" }
   );
@@ -368,8 +368,8 @@ async function runChecks({
 
     onResult(
       "Quantity",
-      draftQty,
-      invQty,
+      formatCurr(draftQty),
+      formatCurr(invQty),
       isEqual(draftQty, invQty) && String(effectiveUnit) === String(plUnit),
       {
         isQty: true,
@@ -399,8 +399,8 @@ async function runChecks({
       : "";
     onResult(
       "Amount",
-      `${draftCIF} ${valuta}`,
-      `${invCIF} ${selectedValuta}`,
+      `${formatCurr(draftCIF)} ${valuta}`,
+      `${formatCurr(invCIF)} ${selectedValuta}`,
       isEqual(draftCIF, invCIF) && valuta === selectedValuta,
       { group: `barang-${barangCounter}` }
     );
