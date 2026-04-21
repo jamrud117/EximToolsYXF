@@ -144,7 +144,7 @@ document.addEventListener("DOMContentLoaded", () => {
         toast: true,
         position: "top-end",
         icon: "success",
-        title: "✅ Berhasil disalin!",
+        title: "Teks Berhasil disalin!",
         showConfirmButton: false,
         timer: 2000,
         timerProgressBar: true,
