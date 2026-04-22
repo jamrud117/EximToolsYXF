@@ -137,25 +137,27 @@ function bindCheckButton() {
   });
 }
 
+let isProgrammaticChange = false;
 const uploadZone = document.getElementById("uploadZone");
 const fileInput = document.getElementById("files");
 
-// Klik zona → buka file picker
-uploadZone.addEventListener("click", () => fileInput.click());
+uploadZone.addEventListener("click", (e) => {
+  if (e.target === fileInput) return;
 
-// Drag events
+  fileInput.click();
+});
+
 uploadZone.addEventListener("dragenter", (e) => {
   e.preventDefault();
   uploadZone.classList.add("drag-over");
 });
 
 uploadZone.addEventListener("dragover", (e) => {
-  e.preventDefault(); // wajib agar drop bisa terjadi
+  e.preventDefault();
   uploadZone.classList.add("drag-over");
 });
 
 uploadZone.addEventListener("dragleave", (e) => {
-  // Cek agar tidak trigger saat hover ke child element
   if (!uploadZone.contains(e.relatedTarget)) {
     uploadZone.classList.remove("drag-over");
   }
@@ -174,12 +176,12 @@ uploadZone.addEventListener("drop", (e) => {
     return;
   }
 
-  // Masukkan ke input file agar handler yang sudah ada tetap berjalan
   const dataTransfer = new DataTransfer();
   droppedFiles.forEach((f) => dataTransfer.items.add(f));
+
+  isProgrammaticChange = true; // ⬅️ tandai ini bukan user action
   fileInput.files = dataTransfer.files;
 
-  // Trigger change event supaya listener lain ikut jalan
   fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 });
 

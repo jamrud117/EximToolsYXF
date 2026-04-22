@@ -304,8 +304,13 @@
     <!-- File upload feedback -->
     <script>
       document.getElementById("files").addEventListener("change", function () {
+        if (isProgrammaticChange) {
+          isProgrammaticChange = false;
+        }
+
         const hint = document.getElementById("uploadHint");
         const count = this.files.length;
+
         if (count === 0) {
           hint.textContent = "Upload 3 file: Draft EXIM, Invoice, Packing List";
           hint.className = "upload-sub";
