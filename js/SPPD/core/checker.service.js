@@ -246,14 +246,14 @@ async function runChecks({
     "Bruto",
     formatCurr(getCellValue(sheetsDATA.HEADER, "CB2")),
     formatCurr(bruttoSum),
-    isEqual(getCellValue(sheetsDATA.HEADER, "CB2"), bruttoSum),
+    isEqualNonZero(getCellValue(sheetsDATA.HEADER, "CB2"), bruttoSum),
     { unit: "KG" }
   );
   onResult(
     "Netto",
     formatCurr(getCellValue(sheetsDATA.HEADER, "CC2")),
     formatCurr(nettoSum),
-    isEqual(getCellValue(sheetsDATA.HEADER, "CC2"), nettoSum),
+    isEqualNonZero(getCellValue(sheetsDATA.HEADER, "CC2"), nettoSum),
     { unit: "KG" }
   );
 
@@ -398,7 +398,7 @@ async function runChecks({
       "NW",
       formatCurr(draftNW),
       formatCurr(plNW),
-      isEqual(draftNW, plNW),
+      isEqualNonZero(draftNW, plNW),
       {
         unit: "KG",
         group: `barang-${barangCounter}`,
@@ -411,7 +411,7 @@ async function runChecks({
       "GW",
       formatCurr(draftGW),
       formatCurr(plGW),
-      isEqual(draftGW, plGW),
+      isEqualNonZero(draftGW, plGW),
       {
         unit: "KG",
         group: `barang-${barangCounter}`,

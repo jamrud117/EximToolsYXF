@@ -179,3 +179,17 @@ function cleanNumber(val) {
     .replace(/.*?:\s*/i, "")
     .trim();
 }
+const isEqualNonZero = (a, b) => {
+  const numA = parseFloat(a);
+  const numB = parseFloat(b);
+
+  console.log("isEqualNonZero called →", { a, b, numA, numB });
+
+  if (!a || !b || numA === 0 || numB === 0 || isNaN(numA) || isNaN(numB)) {
+    console.log("→ return FALSE (ada nilai 0)");
+    return false;
+  }
+
+  console.log("→ lanjut isEqual");
+  return isEqual(a, b);
+};
