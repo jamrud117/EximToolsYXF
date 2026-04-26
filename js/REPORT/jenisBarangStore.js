@@ -2,18 +2,32 @@
  * jenisBarangStore.js — Penyimpanan jenis barang per jenis BC di localStorage
  */
 
-const JENIS_BARANG_KEY = 'yxf_jenis_barang';
+const JENIS_BARANG_KEY = "yxf_jenis_barang";
 
 const DEFAULT_JENIS_BARANG = {
-  'BC 2.7 Masuk':  ['INSOLE', 'EVA FOOTBED', 'PU FOAM', 'TEXTILE', 'LOGO', 'BOX KEMASAN'],
-  'BC 2.7 Keluar': ['INSOLE', 'EVA FOOTBED', 'TEXTILE', 'BOX KEMASAN'],
-  'BC 4.0 Masuk':  ['SMART FOAM', 'PU FOAM', 'CHEMICAL', 'CARTON BOX', 'STICKER FIFO', 'PRINT FILM'],
-  'BC 4.1 Keluar': ['SMART FOAM', 'PU FOAM', 'CHEMICAL'],
+  "BC 2.7 Masuk": [
+    "INSOLE",
+    "EVA FOOTBED",
+    "PU FOAM",
+    "TEXTILE",
+    "LOGO",
+    "BOX KEMASAN",
+  ],
+  "BC 2.7 Keluar": ["INSOLE", "EVA FOOTBED", "TEXTILE", "BOX KEMASAN"],
+  "BC 4.0 Masuk": [
+    "SMART FOAM",
+    "PU FOAM",
+    "CHEMICAL",
+    "CARTON BOX",
+    "STICKER FIFO",
+    "PRINT FILM",
+  ],
+  "BC 4.1 Keluar": ["SMART FOAM", "PU FOAM", "CHEMICAL"],
 };
 
 function loadJenisBarang() {
   try {
-    return JSON.parse(localStorage.getItem(JENIS_BARANG_KEY) || '{}');
+    return JSON.parse(localStorage.getItem(JENIS_BARANG_KEY) || "{}");
   } catch {
     return {};
   }

@@ -30,7 +30,7 @@ function findColIndex(header, keyword) {
   return header.findIndex((h) =>
     String(h || "")
       .toUpperCase()
-      .includes(keyword.toUpperCase())
+      .includes(keyword.toUpperCase()),
   );
 }
 

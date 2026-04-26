@@ -5,6 +5,7 @@
  */
 
 let selectedFiles = [];
+let cachedWorkbooks = []; // Workbooks yang sudah dibaca dari file
 
 document.addEventListener("DOMContentLoaded", () => {
   // ─── Init ──────────────────────────────────────────────────
@@ -24,8 +25,16 @@ document.addEventListener("DOMContentLoaded", () => {
   excludeAjuSelect = new Choices("#excludeAju", {
     removeItemButton: true,
     placeholder: true,
-    placeholderValue: "Pilih nomor AJU...",
-    searchPlaceholderValue: "Cari nomor AJU...",
+    placeholderValue: "Pilih nomor Aju Untuk Dikecualikan...",
+    searchPlaceholderValue: "Cari nomor Aju...",
+    shouldSort: false,
+  });
+
+  entitasPTSelect = new Choices("#entitasPT", {
+    removeItemButton: true,
+    placeholder: true,
+    placeholderValue: "Pilih Entitas Perusahaan...",
+    searchPlaceholderValue: "Cari entitas...",
     shouldSort: false,
   });
 
@@ -37,20 +46,28 @@ document.addEventListener("DOMContentLoaded", () => {
 
   // ─── Configuration events ──────────────────────────────────
 
-  $("jenisBC").addEventListener("change", () => {
-    filterJenisBarangByBC($("jenisBC").value);
+  $("jenisBC").addEventListener("change", async () => {
     toggleStatusJalur();
-    refreshUI();
+
+    // Simpan pilihan sebelumnya sebelum choices di-reset
+    const prevJenisBarang = getSelectedValues("jenisBarang");
+    const prevEntitas = getSelectedValues("entitasPT");
+    const prevExclude = getSelectedValues("excludeAju");
+
+    // Update jenis barang, pertahankan yang masih valid di BC baru
+    filterJenisBarangByBC($("jenisBC").value, prevJenisBarang);
+
+    // Jika ada workbooks tersimpan → re-extract otomatis dengan jenisBC baru
+    if (cachedWorkbooks.length) {
+      await extractAndRenderFromCache(prevEntitas, prevExclude);
+    }
   });
 
   $("jenisBarang").addEventListener("change", refreshUI);
-
+  $("entitasPT").addEventListener("change", refreshUI);
   $("excludeAju").addEventListener("change", refreshUI);
-
   $("statusJalur").addEventListener("change", refreshUI);
-
   $("jalurOverride").addEventListener("input", refreshUI);
-
   $("masukTgl").addEventListener("change", refreshUI);
 
   $("masukTgl").addEventListener("click", function () {
@@ -62,72 +79,17 @@ document.addEventListener("DOMContentLoaded", () => {
   $("files").addEventListener("change", async (e) => {
     selectedFiles = Array.from(e.target.files);
     renderFileList(selectedFiles);
-    if (!selectedFiles.length) return;
 
-    setLoading(true);
-    try {
-      const extracted = await processFiles(selectedFiles);
-      setExtractedData(extracted);
-      populateExcludeAju(extracted);
-      renderPreview(extracted);
-      $("result").value = generateResultText(extracted);
-      updateResultCount(extracted.length);
-    } catch (err) {
-      console.error(err);
-      Swal.fire({
-        icon: "error",
-        title: "Gagal Membaca File",
-        text: err.message || "Pastikan format file sesuai.",
-      });
-    } finally {
-      setLoading(false);
-    }
-  });
-
-  // ─── Process button ────────────────────────────────────────
-
-  $("processBtn").addEventListener("click", async () => {
     if (!selectedFiles.length) {
-      return Swal.fire({
-        toast: true,
-        position: "top-end",
-        icon: "warning",
-        title: "Upload minimal 1 file Excel terlebih dahulu!",
-        showConfirmButton: false,
-        timer: 2000,
-        timerProgressBar: true,
-      });
-    }
-    if (!getSelectedValues("jenisBarang").length) {
-      return Swal.fire({
-        toast: true,
-        position: "top-end",
-        icon: "warning",
-        title: "Pilih minimal 1 jenis barang!",
-        showConfirmButton: false,
-        timer: 2000,
-        timerProgressBar: true,
-      });
+      cachedWorkbooks = [];
+      setExtractedData([]);
+      renderPreview([]);
+      $("result").value = "";
+      updateResultCount(0);
+      return;
     }
 
-    setLoading(true);
-    try {
-      const extracted = await processFiles(selectedFiles);
-      setExtractedData(extracted);
-      populateExcludeAju(extracted);
-      renderPreview(extracted);
-      $("result").value = generateResultText(extracted);
-      updateResultCount(extracted.length);
-    } catch (err) {
-      console.error(err);
-      Swal.fire({
-        icon: "error",
-        title: "Gagal Proses",
-        text: err.message || "Terjadi kesalahan.",
-      });
-    } finally {
-      setLoading(false);
-    }
+    await extractAndRender();
   });
 
   // ─── Copy button ───────────────────────────────────────────
@@ -156,16 +118,35 @@ document.addEventListener("DOMContentLoaded", () => {
 
   $("clearBtn").addEventListener("click", () => {
     selectedFiles = [];
+    cachedWorkbooks = [];
     setExtractedData([]);
 
+    // Reset file
     $("files").value = "";
     renderFileList([]);
+
+    // Reset output
     renderPreview([]);
     $("result").value = "";
-    $("masukTgl").value = new Date().toISOString().slice(0, 10);
     updateResultCount(0);
 
+    // Reset tanggal
+    $("masukTgl").value = new Date().toISOString().slice(0, 10);
+
+    // Reset jenis BC & jalur ke default
+    $("jenisBC").value = "BC 2.7 Masuk";
+    $("statusJalur").value = "HIJAU";
+    $("jalurOverride").value = "";
+    toggleStatusJalur();
+
+    // Reset jenis barang ke default BC, tanpa pilihan aktif
     filterJenisBarangByBC($("jenisBC").value);
+
+    // Clear entitas PT
+    entitasPTSelect.clearStore();
+    entitasPTSelect.clearChoices();
+
+    // Clear exclude AJU
     excludeAjuSelect.clearStore();
     excludeAjuSelect.clearChoices();
   });
@@ -181,15 +162,56 @@ document.addEventListener("DOMContentLoaded", () => {
   });
 });
 
-// ─── Helpers ───────────────────────────────────────────────────
+// ─── Core Processing ───────────────────────────────────────────
 
 /**
- * Proses semua file secara paralel → flat array dokumen
+ * Baca semua files → simpan workbooks → extract & render
  */
-async function processFiles(files) {
-  const workbooks = await Promise.all(files.map(readWorkbook));
-  return workbooks.flatMap(({ wb }) => extractMultipleDocuments(wb));
+async function extractAndRender() {
+  setLoading(true);
+  try {
+    cachedWorkbooks = await Promise.all(selectedFiles.map(readWorkbook));
+    await extractAndRenderFromCache([], []);
+  } catch (err) {
+    console.error(err);
+    Swal.fire({
+      icon: "error",
+      title: "Gagal Membaca File",
+      text: err.message || "Pastikan format file sesuai.",
+    });
+  } finally {
+    setLoading(false);
+  }
 }
+
+/**
+ * Extract dari workbooks tersimpan → populate choices → render
+ * @param {string[]} prevEntitas — nilai entitas sebelumnya (dipertahankan jika masih valid)
+ * @param {string[]} prevExclude — nilai AJU exclude sebelumnya (dipertahankan jika masih valid)
+ */
+async function extractAndRenderFromCache(prevEntitas = [], prevExclude = []) {
+  setLoading(true);
+  try {
+    const extracted = cachedWorkbooks.flatMap(({ wb }) =>
+      extractMultipleDocuments(wb),
+    );
+    setExtractedData(extracted);
+    populateEntitas(extracted, prevEntitas);
+    populateExcludeAju(extracted, prevExclude);
+    refreshUI();
+  } catch (err) {
+    console.error(err);
+    Swal.fire({
+      icon: "error",
+      title: "Gagal Proses",
+      text: err.message || "Terjadi kesalahan.",
+    });
+  } finally {
+    setLoading(false);
+  }
+}
+
+// ─── Helpers ───────────────────────────────────────────────────
 
 /**
  * Tambah jenis barang baru

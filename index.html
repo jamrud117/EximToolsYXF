@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
   <head>
     <meta charset="utf-8" />
@@ -132,7 +132,7 @@
                   </svg>
                 </div>
                 <p class="upload-hint">
-                  Klik atau drag & drop untuk memilih file
+                  Klik atau drag &amp; drop untuk memilih file
                   <strong>.xlsx</strong>
                 </p>
                 <p class="upload-sub">
@@ -165,7 +165,7 @@
             <div class="card-body-inner">
               <div class="row g-4">
                 <!-- Kolom Kiri -->
-                <div class="col-md-6 d-flex flex-column gap-3">
+                <div class="col-md-6 d-flex flex-column gap-3" id="colKiri">
                   <!-- Jenis Barang -->
                   <div class="field-group">
                     <label class="field-label">Jenis Barang</label>
@@ -207,23 +207,37 @@
                       </button>
                     </div>
                   </div>
+                  <div id="filterGroup" class="d-flex flex-column gap-3">
+                    <!-- Filter Entitas PT -->
+                    <div class="field-group">
+                      <label class="field-label">
+                        Filter Entitas PT
+                        <span class="field-hint">— dari data dokumen</span>
+                      </label>
+                      <select
+                        id="entitasPT"
+                        class="form-select"
+                        multiple
+                      ></select>
+                    </div>
 
-                  <!-- Kecualikan AJU -->
-                  <div class="field-group">
-                    <label class="field-label">
-                      Kecualikan Nomor AJU
-                      <span class="field-hint">— opsional</span>
-                    </label>
-                    <select
-                      id="excludeAju"
-                      class="form-select"
-                      multiple
-                    ></select>
+                    <!-- Kecualikan AJU -->
+                    <div class="field-group">
+                      <label class="field-label">
+                        Filter Nomor Aju
+                        <span class="field-hint">— opsional</span>
+                      </label>
+                      <select
+                        id="excludeAju"
+                        class="form-select"
+                        multiple
+                      ></select>
+                    </div>
                   </div>
                 </div>
 
                 <!-- Kolom Kanan -->
-                <div class="col-md-6 d-flex flex-column gap-3">
+                <div class="col-md-6 d-flex flex-column gap-3" id="colKanan">
                   <!-- Row: Tanggal + Jenis BC -->
                   <div class="row g-3">
                     <div class="col-12 col-xl-6" id="colTanggal">
@@ -248,17 +262,20 @@
                         </select>
                       </div>
                     </div>
-                  </div>
-
-                  <!-- Status Jalur -->
-                  <div class="field-group" id="statusJalurWrap">
-                    <label class="field-label">Status Jalur Default</label>
-                    <div class="jalur-select-wrap">
-                      <select class="form-select" id="statusJalur">
-                        <option value="HIJAU" selected>🟢 Jalur Hijau</option>
-                        <option value="MERAH">🔴 Jalur Merah</option>
-                        <option value="KUNING">🟡 Jalur Kuning</option>
-                      </select>
+                    <div class="col">
+                      <!-- Status Jalur -->
+                      <div class="field-group" id="statusJalurWrap">
+                        <label class="field-label">Status Jalur</label>
+                        <div class="jalur-select-wrap">
+                          <select class="form-select" id="statusJalur">
+                            <option value="HIJAU" selected>
+                              🟢 Jalur Hijau
+                            </option>
+                            <option value="MERAH">🔴 Jalur Merah</option>
+                            <option value="KUNING">🟡 Jalur Kuning</option>
+                          </select>
+                        </div>
+                      </div>
                     </div>
                   </div>
 
@@ -277,23 +294,8 @@
                 </div>
               </div>
 
-              <!-- ACTION BUTTONS -->
+              <!-- ACTION BUTTONS (Reset only) -->
               <div class="action-bar mt-4">
-                <button id="processBtn" class="btn-action btn-action-primary">
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    class="me-1"
-                  >
-                    <polyline points="13 2 3 14 12 14 11 22 21 10 12 10 13 2" />
-                  </svg>
-                  Proses
-                </button>
                 <button id="clearBtn" class="btn-action btn-action-ghost">
                   <svg
                     xmlns="http://www.w3.org/2000/svg"
@@ -359,10 +361,7 @@
             <div class="card-body-inner">
               <div class="result-empty" id="emptyState">
                 <div class="result-empty-icon">📄</div>
-                <p>
-                  Belum ada data — upload file dan klik
-                  <strong>Proses</strong> untuk memulai.
-                </p>
+                <p>Belum ada data — upload file Excel untuk memulai.</p>
               </div>
 
               <textarea
