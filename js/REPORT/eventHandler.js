@@ -19,7 +19,7 @@ document.addEventListener("DOMContentLoaded", () => {
     placeholder: true,
     placeholderValue: "Pilih jenis barang...",
     searchPlaceholderValue: "Cari jenis barang...",
-    shouldSort: false,
+    shouldSort: true,
   });
 
   excludeAjuSelect = new Choices("#excludeAju", {
@@ -27,7 +27,7 @@ document.addEventListener("DOMContentLoaded", () => {
     placeholder: true,
     placeholderValue: "Pilih nomor Aju Untuk Dikecualikan...",
     searchPlaceholderValue: "Cari nomor Aju...",
-    shouldSort: false,
+    shouldSort: true,
   });
 
   entitasPTSelect = new Choices("#entitasPT", {
@@ -35,7 +35,7 @@ document.addEventListener("DOMContentLoaded", () => {
     placeholder: true,
     placeholderValue: "Pilih Entitas Perusahaan...",
     searchPlaceholderValue: "Cari entitas...",
-    shouldSort: false,
+    shouldSort: true,
   });
 
   // Set today's date
@@ -193,7 +193,7 @@ async function extractAndRenderFromCache(prevEntitas = [], prevExclude = []) {
   setLoading(true);
   try {
     const extracted = cachedWorkbooks.flatMap(({ wb }) =>
-      extractMultipleDocuments(wb),
+      extractMultipleDocuments(wb)
     );
     setExtractedData(extracted);
     populateEntitas(extracted, prevEntitas);
