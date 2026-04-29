@@ -8,6 +8,7 @@
 let jenisBarangSelect;
 let excludeAjuSelect;
 let entitasPTSelect;
+let jalurOverrideSelect;
 
 // ============================================================
 // CHOICES HELPERS
@@ -94,6 +95,51 @@ function populateExcludeAju(dataArr, prevValues = []) {
 }
 
 /**
+ * Isi pilihan Nomor Daftar (BC) untuk jalur override dari data terfilter
+ * @param {string[]} prevValues — nilai BC sebelumnya yang ingin dipertahankan
+ */
+function populateJalurOverride(prevValues = []) {
+  if (!jalurOverrideSelect) return;
+  const allData = getExtractedData();
+
+  const selectedEntitas = new Set(
+    Array.from($("entitasPT").selectedOptions).map((o) => o.value),
+  );
+  const excluded = new Set(
+    Array.from($("excludeAju").selectedOptions).map((o) => o.value),
+  );
+
+  const sourceData = selectedEntitas.size
+    ? allData.filter((d) => selectedEntitas.has(d.entitasBC))
+    : allData;
+  const filteredData = excluded.size
+    ? sourceData.filter((d) => !excluded.has(d.aju))
+    : sourceData;
+
+  const newBcList = [...new Set(filteredData.map((d) => d.bc).filter(Boolean))];
+  const newBcSet = new Set(newBcList);
+
+  const keepSelected =
+    prevValues.length > 0
+      ? prevValues
+      : Array.from($("jalurOverride").selectedOptions)
+          .map((o) => o.value)
+          .filter((v) => newBcSet.has(v));
+
+  jalurOverrideSelect.clearStore();
+  jalurOverrideSelect.clearChoices();
+  jalurOverrideSelect.setChoices(
+    newBcList.map((bc) => ({ value: bc, label: bc })),
+    "value",
+    "label",
+    true,
+  );
+  keepSelected.forEach((v) => {
+    if (newBcSet.has(v)) jalurOverrideSelect.setChoiceByValue(v);
+  });
+}
+
+/**
  * Sinkronisasi pilihan Kecualikan AJU berdasarkan Entitas PT yang dipilih.
  * Jika entitas dipilih → hanya tampilkan AJU milik entitas tersebut.
  * Jika tidak ada entitas dipilih → tampilkan semua AJU dari data.
@@ -162,6 +208,11 @@ function refreshUI() {
   // Sinkronisasi daftar AJU dulu sesuai entitas yang dipilih
   syncExcludeAjuToEntitas();
 
+  // Sinkronisasi daftar Nomor Daftar (BC) untuk jalur override (hanya saat MERAH)
+  if ($("statusJalur").value === "MERAH") {
+    populateJalurOverride();
+  }
+
   const filtered = filterData(getExtractedData());
   renderPreview(filtered);
   $("result").value = generateResultText(filtered);
@@ -173,10 +224,13 @@ function refreshUI() {
 // ============================================================
 
 /**
- * Tampilkan/sembunyikan field jalur & sesuaikan grid berdasarkan jenis BC
+ * Tampilkan/sembunyikan field jalur & sesuaikan grid berdasarkan jenis BC dan status jalur.
+ * - jalurOverrideWrap hanya muncul saat statusJalur = MERAH (berada di dalam filterGroup)
+ * - filterGroup pindah ke kanan (colKanan) saat HIJAU/KUNING, ke kiri (colKiri) saat MERAH
  */
 function toggleStatusJalur() {
   const jenisBC = $("jenisBC").value;
+  const statusJalur = $("statusJalur").value;
   const isBC4 = jenisBC.startsWith("BC 4.");
   const isMasuk = jenisBC.includes("Masuk");
   const showJalur = isBC4 || !isMasuk;
@@ -185,20 +239,21 @@ function toggleStatusJalur() {
   $("headerPengirim").textContent = isMasuk ? "PENGIRIM" : "PENERIMA";
   $("labelTanggal").textContent = isMasuk ? "Tanggal Masuk" : "Tanggal Keluar";
 
-  // Toggle visibility
-  const jalurWrap = $("statusJalurWrap");
-  const overrideWrap = $("jalurOverrideWrap");
-  jalurWrap.style.display = showJalur ? "" : "none";
-  overrideWrap.style.display = showJalur ? "" : "none";
+  // Toggle visibility status jalur dropdown
+  $("statusJalurWrap").style.display = showJalur ? "" : "none";
+
+  // jalurOverrideWrap hanya muncul bila jalur aktif DAN dipilih MERAH
+  const isJalurMerah = showJalur && statusJalur === "MERAH";
+  $("jalurOverrideWrap").style.display = isJalurMerah ? "" : "none";
 
   // ── PINDAH FILTER GROUP ──────────────────────────────────
+  // filterGroup (beserta jalurOverrideWrap di dalamnya) ikut pindah:
+  // HIJAU / KUNING → kanan  |  MERAH → kiri
   const filterGroup = $("filterGroup");
-  const isBC27Masuk = jenisBC === "BC 2.7 Masuk";
-
-  if (isBC27Masuk) {
-    $("colKanan").appendChild(filterGroup);
-  } else {
+  if (isJalurMerah) {
     $("colKiri").appendChild(filterGroup);
+  } else {
+    $("colKanan").appendChild(filterGroup);
   }
 
   // Grid col adjustment

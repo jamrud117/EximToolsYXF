@@ -300,6 +300,15 @@ body::-webkit-scrollbar {
     box-shadow 0.15s ease;
 }
 
+/* ─── Samakan tinggi input tunggal dengan Choices.js ─────── */
+#masukTgl,
+#jenisBC,
+#statusJalur {
+  height: 44px;
+  padding-top: 0;
+  padding-bottom: 0;
+}
+
 .form-control:focus,
 .form-select:focus {
   border-color: var(--accent);
@@ -455,6 +464,7 @@ input[type="date"]::-webkit-calendar-picker-indicator {
   position: absolute;
   overflow: hidden;
 }
+
 .choices__list--dropdown .choices__list {
   max-height: 100px;
   overflow-y: auto;

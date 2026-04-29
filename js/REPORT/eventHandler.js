@@ -17,7 +17,7 @@ document.addEventListener("DOMContentLoaded", () => {
   jenisBarangSelect = new Choices("#jenisBarang", {
     removeItemButton: true,
     placeholder: true,
-    placeholderValue: "Pilih jenis barang...",
+    placeholderValue: "Pilih Jenis Barang...",
     searchPlaceholderValue: "Cari jenis barang...",
     shouldSort: true,
   });
@@ -25,8 +25,8 @@ document.addEventListener("DOMContentLoaded", () => {
   excludeAjuSelect = new Choices("#excludeAju", {
     removeItemButton: true,
     placeholder: true,
-    placeholderValue: "Pilih nomor Aju Untuk Dikecualikan...",
-    searchPlaceholderValue: "Cari nomor Aju...",
+    placeholderValue: "Pilih Nomor Aju...",
+    searchPlaceholderValue: "Cari Nomor Aju...",
     shouldSort: true,
   });
 
@@ -34,7 +34,15 @@ document.addEventListener("DOMContentLoaded", () => {
     removeItemButton: true,
     placeholder: true,
     placeholderValue: "Pilih Entitas Perusahaan...",
-    searchPlaceholderValue: "Cari entitas...",
+    searchPlaceholderValue: "Cari Entitas...",
+    shouldSort: true,
+  });
+
+  jalurOverrideSelect = new Choices("#jalurOverride", {
+    removeItemButton: true,
+    placeholder: true,
+    placeholderValue: "Pilih Nomor Daftar",
+    searchPlaceholderValue: "Cari nomor daftar...",
     shouldSort: true,
   });
 
@@ -66,8 +74,15 @@ document.addEventListener("DOMContentLoaded", () => {
   $("jenisBarang").addEventListener("change", refreshUI);
   $("entitasPT").addEventListener("change", refreshUI);
   $("excludeAju").addEventListener("change", refreshUI);
-  $("statusJalur").addEventListener("change", refreshUI);
-  $("jalurOverride").addEventListener("input", refreshUI);
+  $("statusJalur").addEventListener("change", () => {
+    toggleStatusJalur();
+    refreshUI();
+  });
+  $("jalurOverride").addEventListener("change", refreshUI);
+  jalurOverrideSelect.passedElement.element.addEventListener(
+    "change",
+    refreshUI,
+  );
   $("masukTgl").addEventListener("change", refreshUI);
 
   $("masukTgl").addEventListener("click", function () {
@@ -136,7 +151,6 @@ document.addEventListener("DOMContentLoaded", () => {
     // Reset jenis BC & jalur ke default
     $("jenisBC").value = "BC 2.7 Masuk";
     $("statusJalur").value = "HIJAU";
-    $("jalurOverride").value = "";
     toggleStatusJalur();
 
     // Reset jenis barang ke default BC, tanpa pilihan aktif
@@ -149,6 +163,10 @@ document.addEventListener("DOMContentLoaded", () => {
     // Clear exclude AJU
     excludeAjuSelect.clearStore();
     excludeAjuSelect.clearChoices();
+
+    // Clear jalur override
+    jalurOverrideSelect.clearStore();
+    jalurOverrideSelect.clearChoices();
   });
 
   // ─── Add jenis barang ──────────────────────────────────────
@@ -193,7 +211,7 @@ async function extractAndRenderFromCache(prevEntitas = [], prevExclude = []) {
   setLoading(true);
   try {
     const extracted = cachedWorkbooks.flatMap(({ wb }) =>
-      extractMultipleDocuments(wb)
+      extractMultipleDocuments(wb),
     );
     setExtractedData(extracted);
     populateEntitas(extracted, prevEntitas);

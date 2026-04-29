@@ -213,10 +213,22 @@ function generateResultText(dataArr) {
 
   const rawBC = $("jenisBC").value;
   const { bc, arah } = parseJenisBC(rawBC);
-  const defaultJalur = $("statusJalur")?.value || "HIJAU";
-  const jalurOverride = parseJalurOverride($("jalurOverride")?.value || "");
+  const statusJalurVal = $("statusJalur")?.value || "HIJAU";
   const jenisBarang = getSelectedValues("jenisBarang").join(" + ");
   const masukTxt = fmtDate(new Date($("masukTgl").value));
+
+  // Saat MERAH: nomor daftar yg dipilih di Choices = MERAH, sisanya HIJAU
+  let defaultJalur, jalurOverrideMap;
+  if (statusJalurVal === "MERAH") {
+    defaultJalur = "HIJAU";
+    jalurOverrideMap = {};
+    Array.from($("jalurOverride").selectedOptions).forEach((o) => {
+      jalurOverrideMap[o.value] = "MERAH";
+    });
+  } else {
+    defaultJalur = statusJalurVal;
+    jalurOverrideMap = {};
+  }
 
   const key = BC_FORMATTERS[bc] ? bc : `BC 2.7_${arah}`;
 
@@ -228,7 +240,7 @@ function generateResultText(dataArr) {
     arah,
     jenisBarang,
     masukTxt,
-    jalurOverride,
+    jalurOverrideMap,
     defaultJalur,
   );
 }

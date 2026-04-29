@@ -168,13 +168,18 @@
                 <div class="col-md-6 d-flex flex-column gap-3" id="colKiri">
                   <!-- Tambah Jenis Barang -->
                   <div class="field-group">
-                    <label class="field-label">Tambah Jenis Baru</label>
+                    <label class="field-label">
+                      Tambahkan Jenis Barang
+                      <span class="field-hint"
+                        >— Choices Js Pilihan Barang</span
+                      >
+                    </label>
                     <div class="input-group">
                       <input
                         type="text"
                         id="newJenisBarang"
                         class="form-control"
-                        placeholder="Ketik nama jenis barang..."
+                        placeholder="Ketik Nama Jenis Barang..."
                       />
                       <button
                         class="btn-add"
@@ -199,7 +204,10 @@
                   </div>
                   <!-- Jenis Barang -->
                   <div class="field-group">
-                    <label class="field-label">Jenis Barang</label>
+                    <label class="field-label">
+                      Jenis Barang
+                      <span class="field-hint">— Pilihan Jenis Barang</span>
+                    </label>
                     <select
                       id="jenisBarang"
                       class="form-select"
@@ -216,19 +224,6 @@
                       </label>
                       <select
                         id="entitasPT"
-                        class="form-select"
-                        multiple
-                      ></select>
-                    </div>
-
-                    <!-- Kecualikan AJU -->
-                    <div class="field-group">
-                      <label class="field-label">
-                        Filter Nomor Aju
-                        <span class="field-hint">— opsional</span>
-                      </label>
-                      <select
-                        id="excludeAju"
                         class="form-select"
                         multiple
                       ></select>
@@ -278,18 +273,36 @@
                       </div>
                     </div>
                   </div>
+                  <!-- Kecualikan AJU -->
+                  <div class="field-group">
+                    <label class="field-label">
+                      Filter Nomor Aju
+                      <span class="field-hint">— opsional</span>
+                    </label>
+                    <select
+                      id="excludeAju"
+                      class="form-select"
+                      multiple
+                    ></select>
+                  </div>
 
-                  <!-- Jalur Override -->
-                  <div class="field-group" id="jalurOverrideWrap">
+                  <!-- Jalur Override (hanya muncul saat MERAH) -->
+                  <div
+                    class="field-group"
+                    id="jalurOverrideWrap"
+                    style="display: none"
+                  >
                     <label class="field-label">
                       Penandaan Jalur Khusus
-                      <span class="field-hint">— per nomor BC/AJU</span>
+                      <span class="field-hint"
+                        >— Pilih nomor daftar jalur merah</span
+                      >
                     </label>
-                    <textarea
+                    <select
                       id="jalurOverride"
-                      class="form-control textarea-override"
-                      placeholder="Contoh:&#10;MERAH = 123456, 789012&#10;KUNING = 345678"
-                    ></textarea>
+                      class="form-select"
+                      multiple
+                    ></select>
                   </div>
                 </div>
               </div>
