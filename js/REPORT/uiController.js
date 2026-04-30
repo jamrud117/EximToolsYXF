@@ -27,7 +27,7 @@ function filterJenisBarangByBC(jenisBC, prevValues = []) {
     items.map((v) => ({ value: v, label: v })),
     "value",
     "label",
-    true,
+    true
   );
 
   // Pertahankan pilihan yang masih valid di BC baru
@@ -56,7 +56,7 @@ function populateEntitas(dataArr, prevValues = []) {
     entitasList.map((e) => ({ value: e, label: e })),
     "value",
     "label",
-    true,
+    true
   );
 
   // Pertahankan pilihan yang masih valid
@@ -82,7 +82,7 @@ function populateExcludeAju(dataArr, prevValues = []) {
     ajuList.map((aju) => ({ value: aju, label: aju })),
     "value",
     "label",
-    true,
+    true
   );
 
   // Pertahankan pilihan yang masih valid
@@ -103,10 +103,10 @@ function populateJalurOverride(prevValues = []) {
   const allData = getExtractedData();
 
   const selectedEntitas = new Set(
-    Array.from($("entitasPT").selectedOptions).map((o) => o.value),
+    Array.from($("entitasPT").selectedOptions).map((o) => o.value)
   );
   const excluded = new Set(
-    Array.from($("excludeAju").selectedOptions).map((o) => o.value),
+    Array.from($("excludeAju").selectedOptions).map((o) => o.value)
   );
 
   const sourceData = selectedEntitas.size
@@ -132,7 +132,7 @@ function populateJalurOverride(prevValues = []) {
     newBcList.map((bc) => ({ value: bc, label: bc })),
     "value",
     "label",
-    true,
+    true
   );
   keepSelected.forEach((v) => {
     if (newBcSet.has(v)) jalurOverrideSelect.setChoiceByValue(v);
@@ -150,7 +150,7 @@ function syncExcludeAjuToEntitas() {
   if (!allData.length) return;
 
   const selectedEntitas = new Set(
-    Array.from($("entitasPT").selectedOptions).map((o) => o.value),
+    Array.from($("entitasPT").selectedOptions).map((o) => o.value)
   );
 
   // Tentukan data sumber untuk daftar AJU
@@ -172,7 +172,7 @@ function syncExcludeAjuToEntitas() {
     newAjuList.map((aju) => ({ value: aju, label: aju })),
     "value",
     "label",
-    true,
+    true
   );
 
   // Kembalikan pilihan yang masih valid
@@ -186,7 +186,7 @@ function syncExcludeAjuToEntitas() {
 function filterData(dataArr) {
   // Filter entitas PT (jika ada yang dipilih, tampilkan hanya yang dipilih)
   const selectedEntitas = new Set(
-    Array.from($("entitasPT").selectedOptions).map((o) => o.value),
+    Array.from($("entitasPT").selectedOptions).map((o) => o.value)
   );
   let filtered = selectedEntitas.size
     ? dataArr.filter((d) => selectedEntitas.has(d.entitasBC))
@@ -194,7 +194,7 @@ function filterData(dataArr) {
 
   // Filter exclude AJU
   const excluded = new Set(
-    Array.from($("excludeAju").selectedOptions).map((o) => o.value),
+    Array.from($("excludeAju").selectedOptions).map((o) => o.value)
   );
   if (excluded.size) {
     filtered = filtered.filter((d) => !excluded.has(d.aju));
@@ -250,10 +250,23 @@ function toggleStatusJalur() {
   // filterGroup (beserta jalurOverrideWrap di dalamnya) ikut pindah:
   // HIJAU / KUNING → kanan  |  MERAH → kiri
   const filterGroup = $("filterGroup");
+
   if (isJalurMerah) {
     $("colKiri").appendChild(filterGroup);
   } else {
-    $("colKanan").appendChild(filterGroup);
+    const colKanan = $("colKanan");
+
+    // ambil row pertama (tanggal + jenis BC + status jalur)
+    const firstRow = colKanan.querySelector(".row");
+
+    // cari elemen setelah row
+    const next = firstRow.nextElementSibling;
+
+    if (next) {
+      colKanan.insertBefore(filterGroup, next);
+    } else {
+      colKanan.appendChild(filterGroup);
+    }
   }
 
   // Grid col adjustment
