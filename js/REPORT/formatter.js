@@ -34,8 +34,10 @@ function formatTanggalDokumen(arr) {
     .map(([s, e]) =>
       s.getTime() === e.getTime()
         ? fmtDate(s)
-        : `${String(s.getDate()).padStart(2, "0")}-${String(e.getDate()).padStart(2, "0")}` +
-          `/${String(s.getMonth() + 1).padStart(2, "0")}/${s.getFullYear()}`,
+        : `${String(s.getDate()).padStart(2, "0")}-${String(
+            e.getDate()
+          ).padStart(2, "0")}` +
+          `/${String(s.getMonth() + 1).padStart(2, "0")}/${s.getFullYear()}`
     )
     .join(", ");
 }
@@ -95,7 +97,7 @@ function formatBC4x(
   jenisBarang,
   masukTxt,
   jalurOverrideMap,
-  defaultJalur,
+  defaultJalur
 ) {
   const { kemasanMap, barangMap, tanggalArr } = buildAggregates(dataArr);
   const { bcGrouped } = buildBCGrouped(dataArr, jalurOverrideMap, defaultJalur);
@@ -110,8 +112,9 @@ function formatBC4x(
     `*${rawBC}*`,
     `${labelEntitas} : ${entitas}`,
     ...Object.entries(bcGrouped).map(
-      ([k, v]) => `No BC (${k}) : ${v.join(", ")}`,
+      ([k, v]) => `No BC (${k}) : ${v.join(", ")}`
     ),
+    `Jumlah Dokumen : ${dataArr.length} Dokumen`,
     `Jenis Barang : ${jenisBarang}`,
     `Jumlah barang : ${formatKeyValue(barangMap)}`,
     `Jumlah kemasan : ${formatKeyValue(kemasanMap)}`,
@@ -128,7 +131,7 @@ function formatBC27Keluar(
   jenisBarang,
   masukTxt,
   jalurOverrideMap,
-  defaultJalur,
+  defaultJalur
 ) {
   const { kemasanMap, barangMap, segelList, tanggalArr } =
     buildAggregates(dataArr);
@@ -175,7 +178,7 @@ function formatBC27Masuk(dataArr, jenisBarang, masukTxt) {
     `*BC 2.7 Masuk*`,
     `Supplier : ${pengirim}`,
     ...Object.entries(bcList).map(
-      ([j, l]) => `No BC 2.7 (${j}) : ${l.join(", ")}`,
+      ([j, l]) => `No BC 2.7 (${j}) : ${l.join(", ")}`
     ),
     `No Segel : ${segelList.join(", ")}`,
     `Jumlah Dokumen : ${dataArr.length} Dokumen`,
@@ -241,6 +244,6 @@ function generateResultText(dataArr) {
     jenisBarang,
     masukTxt,
     jalurOverrideMap,
-    defaultJalur,
+    defaultJalur
   );
 }
