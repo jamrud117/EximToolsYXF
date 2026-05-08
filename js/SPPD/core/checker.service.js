@@ -1,50 +1,373 @@
 // ============================================================
-// core/checker.service.js — Cross-check orchestration logic
+// core/checker.service.js — Cross-check orchestration
+// Depends on: config/constants.js, utils/comparator.js,
+//             utils/formatter.js, utils/parser.js,
+//             core/kurs.service.js, core/sheet.reader.js
 // ============================================================
 
-// Dependency: excel.service.js, utils/formatter.js, utils/parser.js
-// (loaded via <script> tags in the page)
-
-// ── Comparison helpers ───────────────────────────────────────
-
-function normalize(v) {
-  if (v === null || v === undefined) return "";
-  if (typeof v === "number") return v;
-  return String(v).trim();
-}
-
-function isEqual(a, b) {
-  const n1 = normalize(a);
-  const n2 = normalize(b);
-  if (typeof n1 === "number" && typeof n2 === "number")
-    return Math.abs(n1 - n2) < 0.01;
-  return String(n1) === String(n2);
-}
-
-function isEqualStrict(a, b) {
-  return (a || "") === (b || "");
-}
-
-// ── Jenis Transaksi Lookup ───────────────────────────────────
-
-const JENIS_TRX_MAP = {
-  1: "PENYERAHAN BKP",
-  2: "PENYERAHAN JKP",
-  3: "RETUR",
-  4: "NON PENYERAHAN",
-  5: "LAINNYA",
-};
+// ── Helpers ───────────────────────────────────────────────────
 
 function resolveJenisTransaksi(n2Val) {
   return JENIS_TRX_MAP[String(n2Val).trim()] || "TIDAK DIKETAHUI";
 }
 
-// ── Main Check Orchestrator ──────────────────────────────────
+// ── Validation ────────────────────────────────────────────────
+
+function _validateSheets(sheetPL, sheetINV, sheetsDATA) {
+  const missing = [];
+  if (!sheetPL || !sheetPL["!ref"])        missing.push("PL");
+  if (!sheetINV || !sheetINV["!ref"])       missing.push("INV");
+  if (!sheetsDATA?.HEADER)                  missing.push("DATA.HEADER");
+  if (!sheetsDATA?.DOKUMEN)                 missing.push("DATA.DOKUMEN");
+  if (missing.length) {
+    throw new Error(`File berikut tidak terdeteksi: ${missing.join(", ")}`);
+  }
+}
+
+// ── INV column detection ──────────────────────────────────────
 
 /**
- * Orchestrates all checks and emits results via `renderResult`.
- * This function is pure logic — no direct DOM manipulation.
- * Results are passed to a callback: renderResult(check, value, ref, isMatch, options)
+ * Detect all relevant column indices from the INV sheet using the
+ * company config keywords.
+ *
+ * CIF and KURS are resolved separately with separator-based
+ * disambiguation so a dual-AMOUNT layout is handled correctly.
+ */
+function _detectINVColumns(sheetINV, config) {
+  const cifKursCols = findHeaderColumns(
+    sheetINV,
+    { cif: config.cif, kurs: "KURS" },
+    40,
+    { separatorKeyword: "KURS" }
+  );
+
+  const otherCols = findHeaderColumns(sheetINV, {
+    kode:       config.kode,
+    uraian:     config.uraian,
+    qty:        config.qty,
+    suratjalan: config.suratjalan,
+    no:         config.no,
+  });
+
+  return {
+    ...otherCols,
+    cif:       cifKursCols.cif,
+    kurs:      cifKursCols.kurs,
+    headerRow: otherCols.headerRow ?? cifKursCols.headerRow,
+  };
+}
+
+/**
+ * Guard: CIF and QTY must not resolve to the same column.
+ * Throws a descriptive error if they do.
+ */
+function _guardCIFQTYConflict(invCols, config) {
+  if (
+    invCols.cif !== undefined &&
+    invCols.qty !== undefined &&
+    invCols.cif === invCols.qty
+  ) {
+    throw new Error(
+      `Kolom Amount dan Quantity terdeteksi di kolom yang sama (col ${invCols.cif}).<br>` +
+      `Periksa mapping keyword di Pengaturan Perusahaan:<br>` +
+      `• Keyword Amount/CIF saat ini: <b>"${config.cif}"</b><br>` +
+      `• Keyword tersebut cocok dengan header QTY, bukan header Amount.<br>` +
+      `Ganti keyword Amount/CIF menjadi kata yang ada di header kolom harga (misal: <b>AMOUNT</b>).`
+    );
+  }
+}
+
+// ── CIF summation ─────────────────────────────────────────────
+
+/**
+ * Sum the CIF column values from all genuine data rows in the INV sheet.
+ * Subtotal rows are automatically skipped.
+ */
+function _sumCIFFromINV(sheetINV, invCols, rangeINV) {
+  let cifSum = 0;
+  if (invCols.headerRow !== null && invCols.cif !== undefined && rangeINV) {
+    for (let r = invCols.headerRow + 1; r <= rangeINV.e.r; r++) {
+      if (isSubtotalRow(sheetINV, r)) continue;
+      const parsed = parseFloat(getCellValueRC(sheetINV, r, invCols.cif));
+      if (!isNaN(parsed)) cifSum += parsed;
+    }
+  }
+  return cifSum;
+}
+
+// ── Header draft extraction ───────────────────────────────────
+
+/**
+ * Read the main financial values from the DATA HEADER sheet using
+ * keyword-based column lookup (not hardcoded cell addresses).
+ */
+function _extractHeaderDraftValues(headerSheet) {
+  const cols = findHeaderColumns(headerSheet, {
+    cif:             "CIF",
+    hargaPenyerahan: "HARGA_PENYERAHAN",
+    bruto:           "BRUTO",
+    netto:           "NETTO",
+    ppn:             "PPN",
+  }, 5);
+
+  const dataRow = (cols.headerRow ?? 0) + 1;
+
+  return {
+    cif:             getCellValueRC(headerSheet, dataRow, cols.cif),
+    hargaPenyerahan: getCellValueRC(headerSheet, dataRow, cols.hargaPenyerahan),
+    bruto:           getCellValueRC(headerSheet, dataRow, cols.bruto),
+    netto:           getCellValueRC(headerSheet, dataRow, cols.netto),
+    ppn:             getCellValueRC(headerSheet, dataRow, cols.ppn),
+  };
+}
+
+// ── Check sections ────────────────────────────────────────────
+
+/**
+ * Ex-BC cross-check (only for RETUR / LAINNYA transactions).
+ * Compares nomor & tanggal from each parsed Ex-BC entry against the draft.
+ */
+function _checkExBC({ jenisTransaksi, parsedExBC, sheetsDATA, onResult, onSectionHeader }) {
+  const isReturable = jenisTransaksi === "RETUR" || jenisTransaksi === "LAINNYA";
+  if (!isReturable || parsedExBC.length === 0) return;
+
+  for (const doc of parsedExBC) {
+    onSectionHeader("exbc", `Ex BC ${doc.jenisDokumen}`);
+
+    const draft       = getExBCFromDraft(sheetsDATA.DOKUMEN, doc.jenisDokumen);
+    const draftLookup = new Map(
+      draft.nomorArr.map((nomor, i) => [nomor, draft.tanggalArr[i] ?? ""])
+    );
+
+    for (const item of doc.items) {
+      const invNomor = String(item.nomor).trim();
+      const invTgl   = parseExcelDate(item.tanggal);
+      const found    = draftLookup.has(invNomor);
+
+      onResult("Nomor Daftar",  found ? invNomor : "(tidak ditemukan)", invNomor, found,             { group: "exbc", isSpecial: true });
+      onResult("Tanggal Daftar", parseExcelDate(draftLookup.get(invNomor) ?? ""), invTgl, isEqual(parseExcelDate(draftLookup.get(invNomor) ?? ""), invTgl), { group: "exbc", isSpecial: true });
+    }
+  }
+}
+
+/**
+ * General checks: Jenis Transaksi, Customer, Address, NPWP.
+ */
+function _checkGeneral({ jenisTransaksi, selectedTrx, config, sheetsDATA, onResult }) {
+  onResult("Jenis Transaksi", jenisTransaksi, selectedTrx,
+    jenisTransaksi.toUpperCase() === selectedTrx.toUpperCase());
+
+  const customer = getCustomerDraft(sheetsDATA);
+  onResult("Customer", customer, config.check || "",
+    String(customer) === String(config.check || ""));
+
+  const address = getAddressDraft(sheetsDATA);
+  onResult("Address", address, config.address || "",
+    String(address) === String(config.address || ""));
+
+  const npwp = getNPWPDraft(sheetsDATA);
+  onResult("NPWP", npwp, config.npwp || "",
+    String(npwp) === String(config.npwp || ""),
+    { isSpecial: true });
+}
+
+/**
+ * Financial checks: CIF, Harga Penyerahan, PPN 11%.
+ *
+ * IMPORTANT — Harga Penyerahan = cifSum × kursAPI.
+ * Kurs TIDAK diambil dari file INV karena sistem CEISA biasanya tidak
+ * mencantumkan kurs pada file ekspor.
+ */
+function _checkFinancials({ cifSum, draftValues, valuta, selectedValuta, kursAPI, onResult }) {
+  // CIF comparison
+  onResult("CIF",
+    `${formatCurr(draftValues.cif)} ${valuta}`,
+    `${formatCurr(cifSum)} ${selectedValuta}`,
+    isEqual(draftValues.cif, cifSum) && valuta === selectedValuta
+  );
+
+  // Harga Penyerahan: selalu cifSum × kurs dari API
+  const hargaPenyerahanRef = cifSum * kursAPI;
+  onResult("Harga Penyerahan",
+    formatRupiah(draftValues.hargaPenyerahan),
+    formatRupiah(hargaPenyerahanRef),
+    isEqual(draftValues.hargaPenyerahan, hargaPenyerahanRef)
+  );
+
+  // PPN 11%: selalu cifSum × kurs API × 0.11
+  const ppnRef = cifSum * kursAPI * 0.11;
+  onResult("PPN 11%",
+    formatRupiah(draftValues.ppn),
+    formatRupiah(ppnRef),
+    Math.abs((draftValues.ppn || 0) - ppnRef) < 0.01
+  );
+}
+
+/**
+ * Weight & packaging checks: Total Kemasan, Bruto, Netto.
+ */
+function _checkWeightsAndPackaging({ plAggregates, sheetsDATA, draftValues, onResult }) {
+  const { kemasanSum, bruttoSum, nettoSum, kemasanUnit } = plAggregates;
+
+  const kemasanUnitData  = getCellValue(sheetsDATA.KEMASAN, "C2");
+  const kemasanQtyData   = getCellValue(sheetsDATA.KEMASAN, "D2");
+  const kemasanUnitMapped = mapPackagingUnit(kemasanUnit);
+  const kemasanDataMapped = mapPackagingUnit(kemasanUnitData);
+
+  onResult("Total Kemasan",
+    `${formatCurr(kemasanQtyData)} ${kemasanDataMapped}`,
+    `${formatCurr(kemasanSum)} ${kemasanUnitMapped}`,
+    isEqual(kemasanQtyData, kemasanSum) && kemasanUnitMapped === kemasanDataMapped,
+    { isQty: true }
+  );
+
+  onResult("Bruto",
+    formatCurr(draftValues.bruto),
+    formatCurr(bruttoSum),
+    isEqualNonZero(draftValues.bruto, bruttoSum),
+    { unit: "KG" }
+  );
+
+  onResult("Netto",
+    formatCurr(draftValues.netto),
+    formatCurr(nettoSum),
+    isEqualNonZero(draftValues.netto, nettoSum),
+    { unit: "KG" }
+  );
+}
+
+/**
+ * Document number & date checks:
+ * Invoice, Packinglist, Delivery Order, Contract.
+ */
+function _checkDocuments({ sheetINV, sheetPL, sheetsDATA, invCols, kontrakNo, kontrakTgl, onResult }) {
+  const invInvoiceNo   = findInvoiceNo(sheetINV);
+  const plInvoiceNo    = findInvoiceNo(sheetPL);
+  const invDateParsed  = extractDateFromText(findDateText(sheetINV));
+  const plDateParsed   = extractDateFromText(findDateText(sheetPL));
+
+  // Invoice
+  const draftInvoiceNo   = getDocumentNumber(sheetsDATA.DOKUMEN, "380");
+  const draftInvoiceDate = findDocDateByCode(sheetsDATA.DOKUMEN, "380");
+  onResult("Invoice No.",   draftInvoiceNo,   invInvoiceNo,  isEqual(draftInvoiceNo,   invInvoiceNo));
+  onResult("Invoice Date",  draftInvoiceDate, invDateParsed, isEqual(draftInvoiceDate, invDateParsed));
+
+  // Packinglist
+  const draftPLNo   = getDocumentNumber(sheetsDATA.DOKUMEN, "217");
+  const draftPLDate = findDocDateByCode(sheetsDATA.DOKUMEN, "217");
+  onResult("Packinglist No.",   draftPLNo,   plInvoiceNo, isEqual(draftPLNo, plInvoiceNo));
+  onResult("Packinglist Date",  draftPLDate, plDateParsed, isEqual(draftPLDate, plDateParsed));
+
+  // Delivery Order
+  let invSuratJalan = "";
+  if (invCols.suratjalan !== undefined && invCols.headerRow !== null) {
+    invSuratJalan = getCellValue(
+      sheetINV,
+      XLSX.utils.encode_cell({ r: invCols.headerRow + 1, c: invCols.suratjalan })
+    );
+  }
+  const draftDONo   = getDocumentNumber(sheetsDATA.DOKUMEN, "640");
+  const draftDODate = findDocDateByCode(sheetsDATA.DOKUMEN, "640");
+  onResult("Delivery Order",      draftDONo,   invSuratJalan, isEqual(draftDONo, invSuratJalan));
+  onResult("Delivery Order Date", draftDODate, invDateParsed, isEqual(draftDODate, invDateParsed));
+
+  // Contract
+  const draftContractNo   = getDocumentNumber(sheetsDATA.DOKUMEN, "315");
+  const draftContractDate = parseExcelDate(findDocDateByCode(sheetsDATA.DOKUMEN, "315"));
+  const kontrakTglFmt     = parseExcelDate(kontrakTgl);
+  onResult("Contract No.",   draftContractNo,   kontrakNo,      isEqual(draftContractNo, kontrakNo));
+  onResult("Contract Date",  draftContractDate, kontrakTglFmt,  isEqual(draftContractDate, kontrakTglFmt));
+}
+
+/**
+ * Per-item (Barang) checks: Code, Item Name, Quantity, NW, GW, Amount.
+ */
+function _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataRows, valuta, selectedValuta, onResult, onBarangHeader }) {
+  const rangeBarang = XLSX.utils.decode_range(sheetsDATA.BARANG["!ref"]);
+  const plCols      = findHeaderColumns(sheetPL, { nw: "NW", gw: "GW" });
+
+  let barangCounter = 1;
+
+  for (let r = 1; r <= rangeBarang.e.r; r++) {
+    const kodeBarang = getCellValue(sheetsDATA.BARANG, `D${r + 1}`);
+    if (!kodeBarang) continue;
+
+    const rowINV = (invCols.headerRow || 0) + r;
+    const rowPL  = plDataRows[barangCounter - 1] ?? ((plCols.headerRow || 0) + r);
+
+    onBarangHeader(barangCounter);
+
+    const group = `barang-${barangCounter}`;
+
+    // Code
+    const invKode = invCols.kode ? getCellValueRC(sheetINV, rowINV, invCols.kode) : "";
+    onResult("Code", kodeBarang, invKode, isEqual(kodeBarang, invKode), { group });
+
+    // Item Name
+    const draftUraian = getCellValue(sheetsDATA.BARANG, `E${r + 1}`);
+    const invUraian   = invCols.uraian ? getCellValueRC(sheetINV, rowINV, invCols.uraian) : "";
+    onResult("Item Name", draftUraian, invUraian, isEqualStrict(draftUraian, invUraian), { group });
+
+    // Quantity
+    const draftQty    = getCellValue(sheetsDATA.BARANG, `K${r + 1}`);
+    const invQty      = invCols.qty ? getCellValueRC(sheetINV, rowINV, invCols.qty) : "";
+    const plUnit      = plUnits.type === "PER_ITEM" ? plUnits.data[barangCounter - 1]?.unit : plUnits.unit;
+    const draftUnit   = getCellValue(sheetsDATA.BARANG, `J${r + 1}`);
+    const effectiveUnit = draftUnit || plUnit;
+
+    onResult("Quantity",
+      formatCurr(draftQty),
+      formatCurr(invQty),
+      isEqual(draftQty, invQty) && String(effectiveUnit) === String(plUnit),
+      { isQty: true, unitForRef: plUnit, unitForData: effectiveUnit, group }
+    );
+
+    // NW
+    const draftNW = getCellValue(sheetsDATA.BARANG, `T${r + 1}`);
+    const plNW    = plCols.nw ? getCellValueRC(sheetPL, rowPL, plCols.nw) : "";
+    onResult("NW", formatCurr(draftNW), formatCurr(plNW), isEqualNonZero(draftNW, plNW), { unit: "KG", group });
+
+    // GW
+    const draftGW = getCellValue(sheetsDATA.BARANG, `U${r + 1}`);
+    const plGW    = plCols.gw ? getCellValueRC(sheetPL, rowPL, plCols.gw) : "";
+    onResult("GW", formatCurr(draftGW), formatCurr(plGW), isEqualNonZero(draftGW, plGW), { unit: "KG", group });
+
+    // Amount (CIF per item)
+    const draftCIF = getCellValue(sheetsDATA.BARANG, `Z${r + 1}`);
+    const invCIF   = invCols.cif ? getCellValueRC(sheetINV, rowINV, invCols.cif) : "";
+    onResult("Amount",
+      `${formatCurr(draftCIF)} ${valuta}`,
+      `${formatCurr(invCIF)} ${selectedValuta}`,
+      isEqual(draftCIF, invCIF) && valuta === selectedValuta,
+      { group }
+    );
+
+    barangCounter++;
+  }
+}
+
+// ── Main orchestrator ─────────────────────────────────────────
+
+/**
+ * Orchestrate all cross-checks and emit results through the callbacks.
+ * This function contains no direct DOM access — all output goes through
+ * the provided callbacks.
+ *
+ * @param {Object}   params
+ * @param {Object}   params.sheetPL
+ * @param {Object}   params.sheetINV
+ * @param {Object}   params.sheetsDATA
+ * @param {string}   params.kontrakNo
+ * @param {string}   params.kontrakTgl
+ * @param {string}   params.selectedPT
+ * @param {string}   params.selectedValuta
+ * @param {string}   params.selectedTrx
+ * @param {Array}    params.parsedExBC
+ * @param {Object}   params.mappings
+ * @param {Function} params.onResult         (check, value, ref, isMatch, opts)
+ * @param {Function} params.onSectionHeader  (type, label)
+ * @param {Function} params.onBarangHeader   (counter)
+ * @returns {Promise<{ kursAPI: number, valuta: string }>}
  */
 async function runChecks({
   sheetPL,
@@ -61,377 +384,50 @@ async function runChecks({
   onSectionHeader,
   onBarangHeader,
 }) {
-  // ── Validate required sheets ──────────────────────────────
-  const missing = [];
-  if (!sheetPL || !sheetPL["!ref"]) missing.push("PL");
-  if (!sheetINV || !sheetINV["!ref"]) missing.push("INV");
-  if (!sheetsDATA?.HEADER) missing.push("DATA.HEADER");
-  if (!sheetsDATA?.DOKUMEN) missing.push("DATA.DOKUMEN");
+  // ── 1. Validate required sheets ──────────────────────────
+  _validateSheets(sheetPL, sheetINV, sheetsDATA);
 
-  if (missing.length) {
-    throw new Error(`File berikut tidak terdeteksi: ${missing.join(", ")}`);
-  }
-
-  // ── Load company config ───────────────────────────────────
+  // ── 2. Company config ────────────────────────────────────
   const config = mappings[selectedPT] || {};
 
-  // ── PL aggregates ─────────────────────────────────────────
-  const { kemasanSum, bruttoSum, nettoSum, kemasanUnit } =
-    hitungKemasanNWGW(sheetPL);
-  const plUnits = getPLUnits(sheetPL);
+  // ── 3. INV column detection ──────────────────────────────
+  const invCols  = _detectINVColumns(sheetINV, config);
+  const rangeINV = sheetINV["!ref"] ? XLSX.utils.decode_range(sheetINV["!ref"]) : null;
+  _guardCIFQTYConflict(invCols, config);
 
-  // ── INV column mapping ────────────────────────────────────
-  const invCols = findHeaderColumns(sheetINV, {
-    kode: config.kode,
-    uraian: config.uraian,
-    qty: config.qty,
-    cif: config.cif,
-    suratjalan: config.suratjalan,
-    no: config.no,
-  });
+  // ── 4. CIF sum from INV ──────────────────────────────────
+  const cifSum = _sumCIFFromINV(sheetINV, invCols, rangeINV);
 
-  const rangeINV = sheetINV?.["!ref"]
-    ? XLSX.utils.decode_range(sheetINV["!ref"])
-    : null;
+  // ── 5. Valuta & kurs — ALWAYS from API ──────────────────
+  // Kurs tidak diambil dari file INV karena sistem CEISA biasanya
+  // tidak mencantumkan kurs pada file ekspor.
+  const valuta = (getCellValue(sheetsDATA.HEADER, "CI2") || "USD").toUpperCase();
+  const kursAPI = await getKursFromAPI(valuta);
+  if (!kursAPI) throw new Error(`Gagal mengambil kurs ${valuta} dari API.`);
 
-  // ── CIF sum from INV ─────────────────────────────────────
-  let cifSum = 0;
-  if (invCols.headerRow !== null && invCols.cif !== undefined) {
-    for (let r = invCols.headerRow + 1; r <= rangeINV.e.r; r++) {
-      const qty = getCellValueRC(sheetINV, r, invCols.qty);
-      const item = getCellValueRC(sheetINV, r, invCols.uraian);
+  // ── 6. Header draft values ───────────────────────────────
+  const draftValues = _extractHeaderDraftValues(sheetsDATA.HEADER);
 
-      if (
-        !qty ||
-        isNaN(qty) ||
-        !item ||
-        String(item).toUpperCase().includes("TOTAL")
-      )
-        break;
+  // ── 7. Jenis transaksi ───────────────────────────────────
+  const jenisTransaksi = resolveJenisTransaksi(getCellValue(sheetsDATA.HEADER, "N2"));
 
-      cifSum += parseFloat(getCellValueRC(sheetINV, r, invCols.cif)) || 0;
-    }
-  }
+  // ── 8. PL aggregates ─────────────────────────────────────
+  const plAggregates = hitungKemasanNWGW(sheetPL);
+  const plUnits      = getPLUnits(sheetPL);
+  const plDataRows   = getPLDataRows(sheetPL, 0);
 
-  // ── Kurs ─────────────────────────────────────────────────
-  const valuta = (
-    getCellValue(sheetsDATA.HEADER, "CI2") || "USD"
-  ).toUpperCase();
-  const kursParsed = await getKursFromSpreadsheet(valuta);
+  // ── 9. Run check sections ────────────────────────────────
 
-  if (!kursParsed) throw new Error(`Gagal mengambil kurs ${valuta}`);
+  _checkExBC({ jenisTransaksi, parsedExBC, sheetsDATA, onResult, onSectionHeader });
 
-  // ── Jenis Transaksi ──────────────────────────────────────
-  const jenisTransaksi = resolveJenisTransaksi(
-    getCellValue(sheetsDATA.HEADER, "N2")
-  );
-
-  // ── EX BC section ────────────────────────────────────────
-  const isReturable =
-    jenisTransaksi === "RETUR" || jenisTransaksi === "LAINNYA";
-
-  if (isReturable && parsedExBC.length > 0) {
-    for (const doc of parsedExBC) {
-      onSectionHeader("exbc", `Ex BC ${doc.jenisDokumen}`);
-
-      const draft = getExBCFromDraft(sheetsDATA.DOKUMEN, doc.jenisDokumen);
-
-      const draftLookup = new Map();
-      draft.nomorArr.forEach((nomor, i) => {
-        draftLookup.set(nomor, draft.tanggalArr[i] ?? "");
-      });
-
-      for (const item of doc.items) {
-        const invNomor = String(item.nomor).trim();
-        const invTgl = parseExcelDate(item.tanggal);
-
-        const draftNomorFound = draftLookup.has(invNomor)
-          ? invNomor
-          : "(tidak ditemukan)";
-        const draftTglFound = parseExcelDate(draftLookup.get(invNomor) ?? "");
-
-        onResult(
-          "Nomor Daftar",
-          draftNomorFound,
-          invNomor,
-          draftLookup.has(invNomor),
-          { group: "exbc", isSpecial: true }
-        );
-        onResult(
-          "Tanggal Daftar",
-          draftTglFound,
-          invTgl,
-          isEqual(draftTglFound, invTgl),
-          { group: "exbc", isSpecial: true }
-        );
-      }
-    }
-  }
-
-  // ── General section ───────────────────────────────────────
   onSectionHeader("general", "General Checking");
 
-  onResult(
-    "Jenis Transaksi",
-    jenisTransaksi,
-    selectedTrx,
-    jenisTransaksi.toUpperCase() === selectedTrx.toUpperCase()
-  );
+  _checkGeneral({ jenisTransaksi, selectedTrx, config, sheetsDATA, onResult });
+  _checkFinancials({ cifSum, draftValues, valuta, selectedValuta, kursAPI, onResult });
+  _checkWeightsAndPackaging({ plAggregates, sheetsDATA, draftValues, onResult });
+  _checkDocuments({ sheetINV, sheetPL, sheetsDATA, invCols, kontrakNo, kontrakTgl, onResult });
 
-  const customerDraft = getCustomerDraft(sheetsDATA);
-  onResult(
-    "Customer",
-    customerDraft,
-    config.check || "",
-    String(customerDraft) === String(config.check || "")
-  );
+  _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataRows, valuta, selectedValuta, onResult, onBarangHeader });
 
-  const addressDraft = getAddressDraft(sheetsDATA);
-  onResult(
-    "Address",
-    addressDraft,
-    config.address || "",
-    String(addressDraft) === String(config.address || "")
-  );
-
-  const npwpDraft = getNPWPDraft(sheetsDATA);
-  onResult(
-    "NPWP",
-    npwpDraft,
-    config.npwp || "",
-    String(npwpDraft) === String(config.npwp || ""),
-    { isSpecial: true }
-  );
-
-  const cifDraft = getCellValue(sheetsDATA.HEADER, "BU2");
-  onResult(
-    "CIF",
-    `${formatCurr(cifDraft)} ${valuta}`,
-    `${formatCurr(cifSum)} ${selectedValuta}`,
-    isEqual(cifDraft, cifSum) && valuta === selectedValuta
-  );
-
-  const hargaPenyerahan = getCellValue(sheetsDATA.HEADER, "BV2");
-  onResult(
-    "Harga Penyerahan",
-    formatRupiah(hargaPenyerahan),
-    formatRupiah(cifSum * kursParsed),
-    isEqual(hargaPenyerahan, cifSum * kursParsed)
-  );
-
-  const dpPajak = getCellValue(sheetsDATA.HEADER, "CT2");
-  const ppnCalc = cifSum * kursParsed * 0.11;
-  onResult(
-    "PPN 11%",
-    formatRupiah(dpPajak),
-    formatRupiah(ppnCalc),
-    Math.abs((dpPajak || 0) - ppnCalc) < 0.01
-  );
-
-  // Packaging
-  const kemasanUnitData = getCellValue(sheetsDATA.KEMASAN, "C2");
-  const kemasanQtyData = getCellValue(sheetsDATA.KEMASAN, "D2");
-  const kemasanUnitMapped = mapPackagingUnit(kemasanUnit);
-  const kemasanDataMapped = mapPackagingUnit(kemasanUnitData);
-  onResult(
-    "Total Kemasan",
-    `${formatCurr(kemasanQtyData)} ${kemasanDataMapped}`,
-    `${formatCurr(kemasanSum)} ${kemasanUnitMapped}`,
-    isEqual(kemasanQtyData, kemasanSum) &&
-      kemasanUnitMapped === kemasanDataMapped,
-    { isQty: true }
-  );
-
-  onResult(
-    "Bruto",
-    formatCurr(getCellValue(sheetsDATA.HEADER, "CB2")),
-    formatCurr(bruttoSum),
-    isEqualNonZero(getCellValue(sheetsDATA.HEADER, "CB2"), bruttoSum),
-    { unit: "KG" }
-  );
-  onResult(
-    "Netto",
-    formatCurr(getCellValue(sheetsDATA.HEADER, "CC2")),
-    formatCurr(nettoSum),
-    isEqualNonZero(getCellValue(sheetsDATA.HEADER, "CC2"), nettoSum),
-    { unit: "KG" }
-  );
-
-  // Document numbers
-  const invInvoiceNo = findInvoiceNo(sheetINV);
-  const plInvoiceNo = findInvoiceNo(sheetPL);
-  const invDateParsed = extractDateFromText(findDateText(sheetINV));
-  const plDateParsed = extractDateFromText(findDateText(sheetPL));
-
-  const draftInvoiceDate = findDocDateByCode(sheetsDATA.DOKUMEN, "380");
-  const draftPackinglistDate = findDocDateByCode(sheetsDATA.DOKUMEN, "217");
-
-  onResult(
-    "Invoice No.",
-    getDocumentNumber(sheetsDATA.DOKUMEN, "380"),
-    invInvoiceNo,
-    isEqual(getDocumentNumber(sheetsDATA.DOKUMEN, "380"), invInvoiceNo)
-  );
-  onResult(
-    "Invoice Date",
-    draftInvoiceDate,
-    invDateParsed,
-    isEqual(draftInvoiceDate, invDateParsed)
-  );
-  onResult(
-    "Packinglist No.",
-    getDocumentNumber(sheetsDATA.DOKUMEN, "217"),
-    plInvoiceNo,
-    isEqual(getDocumentNumber(sheetsDATA.DOKUMEN, "217"), plInvoiceNo)
-  );
-  onResult(
-    "Packinglist Date",
-    draftPackinglistDate,
-    plDateParsed,
-    isEqual(draftPackinglistDate, plDateParsed)
-  );
-
-  // Delivery Order
-  let invSuratJalan = "";
-  if (invCols.suratjalan !== undefined && invCols.headerRow !== null) {
-    invSuratJalan = getCellValue(
-      sheetINV,
-      XLSX.utils.encode_cell({
-        r: invCols.headerRow + 1,
-        c: invCols.suratjalan,
-      })
-    );
-  }
-  const draftDODate = findDocDateByCode(sheetsDATA.DOKUMEN, "640");
-  onResult(
-    "Delivery Order",
-    getDocumentNumber(sheetsDATA.DOKUMEN, "640"),
-    invSuratJalan,
-    isEqual(getDocumentNumber(sheetsDATA.DOKUMEN, "640"), invSuratJalan)
-  );
-  onResult(
-    "Delivery Order Date",
-    draftDODate,
-    invDateParsed,
-    isEqual(draftDODate, invDateParsed)
-  );
-
-  // Contract
-  const draftContractNo = getDocumentNumber(sheetsDATA.DOKUMEN, "315");
-  const draftContractDate = parseExcelDate(
-    findDocDateByCode(sheetsDATA.DOKUMEN, "315")
-  );
-  const kontrakTglFmt = parseExcelDate(kontrakTgl);
-  onResult(
-    "Contract No.",
-    draftContractNo,
-    kontrakNo,
-    isEqual(draftContractNo, kontrakNo)
-  );
-  onResult(
-    "Contract Date",
-    draftContractDate,
-    kontrakTglFmt,
-    isEqual(draftContractDate, kontrakTglFmt)
-  );
-
-  // ── Per-item / Barang section ─────────────────────────────
-  const rangeBarang = XLSX.utils.decode_range(sheetsDATA.BARANG["!ref"]);
-  const plCols = findHeaderColumns(sheetPL, { nw: "NW", gw: "GW" });
-
-  let barangCounter = 1;
-  for (let r = 1; r <= rangeBarang.e.r; r++) {
-    const kodeBarang = getCellValue(sheetsDATA.BARANG, "D" + (r + 1));
-    if (!kodeBarang) continue;
-
-    const rowINV = (invCols.headerRow || 0) + r;
-    const rowPL = (plCols.headerRow || 0) + r;
-
-    onBarangHeader(barangCounter);
-
-    const invKode = invCols.kode
-      ? getCellValueRC(sheetINV, rowINV, invCols.kode)
-      : "";
-    onResult("Code", kodeBarang, invKode, isEqual(kodeBarang, invKode), {
-      group: `barang-${barangCounter}`,
-    });
-
-    const draftUraian = getCellValue(sheetsDATA.BARANG, "E" + (r + 1));
-    const invUraian = invCols.uraian
-      ? getCellValueRC(sheetINV, rowINV, invCols.uraian)
-      : "";
-    onResult(
-      "Item Name",
-      draftUraian,
-      invUraian,
-      isEqualStrict(draftUraian, invUraian),
-      { group: `barang-${barangCounter}` }
-    );
-
-    const draftQty = getCellValue(sheetsDATA.BARANG, "K" + (r + 1));
-    const invQty = invCols.qty
-      ? getCellValueRC(sheetINV, rowINV, invCols.qty)
-      : "";
-    const plUnit =
-      plUnits.type === "PER_ITEM"
-        ? plUnits.data[barangCounter - 1]?.unit
-        : plUnits.unit;
-    const draftUnit = getCellValue(sheetsDATA.BARANG, "J" + (r + 1));
-    const effectiveUnit = draftUnit || plUnit;
-
-    onResult(
-      "Quantity",
-      formatCurr(draftQty),
-      formatCurr(invQty),
-      isEqual(draftQty, invQty) && String(effectiveUnit) === String(plUnit),
-      {
-        isQty: true,
-        unitForRef: plUnit,
-        unitForData: effectiveUnit,
-        group: `barang-${barangCounter}`,
-      }
-    );
-
-    const draftNW = getCellValue(sheetsDATA.BARANG, "T" + (r + 1));
-    const plNW = plCols.nw ? getCellValueRC(sheetPL, rowPL, plCols.nw) : "";
-    onResult(
-      "NW",
-      formatCurr(draftNW),
-      formatCurr(plNW),
-      isEqualNonZero(draftNW, plNW),
-      {
-        unit: "KG",
-        group: `barang-${barangCounter}`,
-      }
-    );
-
-    const draftGW = getCellValue(sheetsDATA.BARANG, "U" + (r + 1));
-    const plGW = plCols.gw ? getCellValueRC(sheetPL, rowPL, plCols.gw) : "";
-    onResult(
-      "GW",
-      formatCurr(draftGW),
-      formatCurr(plGW),
-      isEqualNonZero(draftGW, plGW),
-      {
-        unit: "KG",
-        group: `barang-${barangCounter}`,
-      }
-    );
-
-    const draftCIF = getCellValue(sheetsDATA.BARANG, "Z" + (r + 1));
-    const invCIF = invCols.cif
-      ? getCellValueRC(sheetINV, rowINV, invCols.cif)
-      : "";
-    onResult(
-      "Amount",
-      `${formatCurr(draftCIF)} ${valuta}`,
-      `${formatCurr(invCIF)} ${selectedValuta}`,
-      isEqual(draftCIF, invCIF) && valuta === selectedValuta,
-      { group: `barang-${barangCounter}` }
-    );
-
-    barangCounter++;
-  }
-
-  return { kursParsed, valuta };
+  return { kursAPI, valuta };
 }

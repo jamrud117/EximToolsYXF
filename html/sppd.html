@@ -287,19 +287,25 @@
       <span>Made with 💡 by YF</span>
     </footer>
 
+
     <!-- ═══════════════════════ SCRIPTS ══════════════════════ -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
 
-    <!-- Utils -->
+    <!-- 1. Config -->
+    <script src="../js/SPPD/config/constants.js"></script>
+    <!-- 2. Utils -->
+    <script src="../js/SPPD/utils/comparator.js"></script>
     <script src="../js/SPPD/utils/formatter.js"></script>
     <script src="../js/SPPD/utils/parser.js"></script>
-    <!-- Core services -->
-    <script src="../js/SPPD/core/checker.service.js"></script>
+    <!-- 3. Core services (order matters: kurs → sheet → excel → checker) -->
+    <script src="../js/SPPD/core/kurs.service.js"></script>
+    <script src="../js/SPPD/core/sheet.reader.js"></script>
     <script src="../js/SPPD/core/excel.service.js"></script>
-    <!-- UI -->
-    <script src="../js/SPPD/ui/event.handler.js"></script>
+    <script src="../js/SPPD/core/checker.service.js"></script>
+    <!-- 4. UI -->
     <script src="../js/SPPD/ui/table.renderer.js"></script>
+    <script src="../js/SPPD/ui/event.handler.js"></script>
 
     <!-- File upload feedback -->
     <script>
@@ -308,18 +314,18 @@
           isProgrammaticChange = false;
         }
 
-        const hint = document.getElementById("uploadHint");
+        const hint  = document.getElementById("uploadHint");
         const count = this.files.length;
 
         if (count === 0) {
           hint.textContent = "Upload 3 file: Draft EXIM, Invoice, Packing List";
-          hint.className = "upload-sub";
+          hint.className   = "upload-sub";
         } else if (count === 3) {
           hint.textContent = `✓ ${count} file dipilih`;
-          hint.className = "upload-sub hint-ok";
+          hint.className   = "upload-sub hint-ok";
         } else {
           hint.textContent = `${count} file dipilih — diperlukan tepat 3 file`;
-          hint.className = "upload-sub hint-warn";
+          hint.className   = "upload-sub hint-warn";
         }
       });
     </script>

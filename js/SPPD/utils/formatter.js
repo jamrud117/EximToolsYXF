@@ -1,31 +1,13 @@
 // ============================================================
-// utils/formatter.js — Value formatting helpers
+// utils/formatter.js — Display formatting helpers
+// Depends on: config/constants.js (UNIT_MAP, QTY_UNIT_MAP)
 // ============================================================
 
-const UNIT_MAP = {
-  POLYBAG: "BG",
-  BOX: "BX",
-  CARTON: "CT",
-  ROLL: "RO",
-  SHEET: "ST",
-};
-
-const QTY_UNIT_MAP = {
-  PAIRS: "NPR",
-  PAIR: "NPR",
-  PRS: "NPR",
-  PR: "NPR",
-  PCS: "PCE",
-  PIECE: "PCE",
-  PC: "PCE",
-  PCE: "PCE",
-};
-
 /**
- * Format a numeric/string value with optional unit suffix.
- * @param {*} val
- * @param {boolean} isQty - round to integer if true
- * @param {string} unit
+ * Format a numeric value with optional rounding and unit suffix.
+ * @param {*}       val
+ * @param {boolean} isQty  - round to integer when true
+ * @param {string}  unit
  */
 function formatValue(val, isQty = false, unit = "") {
   if (val === null || val === undefined || val === "") return "";
@@ -38,29 +20,33 @@ function formatValue(val, isQty = false, unit = "") {
   if (isNaN(num)) return str;
 
   const rounded = isQty ? Math.round(num) : Math.round(num * 100) / 100;
-  const rest = str.substring(match[0].length).trim();
-  const suffix = unit || rest;
+  const rest    = str.substring(match[0].length).trim();
+  const suffix  = unit || rest;
 
   return suffix ? `${rounded} ${suffix}` : `${rounded}`;
 }
 
 /**
- * Format number as Indonesian Rupiah.
+ * Format a number as Indonesian Rupiah.
+ * e.g. 16000000 → "Rp. 16.000.000"
  */
 function formatRupiah(value) {
   if (value == null || value === "" || isNaN(value)) return value;
 
-  const num = Number(value);
+  const num        = Number(value);
   const hasDecimal = Math.abs(num % 1) > 0;
 
-  const formatted = num.toLocaleString("id-ID", {
+  return `Rp. ${num.toLocaleString("id-ID", {
     minimumFractionDigits: hasDecimal ? 2 : 0,
     maximumFractionDigits: hasDecimal ? 2 : 0,
-  });
-
-  return `Rp. ${formatted}`;
+  })}`;
 }
 
+/**
+ * Parse and re-format a currency string using the id-ID locale.
+ * Handles both dot-as-thousands and comma-as-decimal conventions.
+ * e.g. "1.234,56" → "1.234,56" | "1234.56" → "1.234,56"
+ */
 function formatCurr(value) {
   if (value == null || value === "") return value;
 
@@ -69,34 +55,22 @@ function formatCurr(value) {
     .replace(/\s+/g, "")
     .replace(/[^\d.,-]/g, "");
 
-  const dotCount = (v.match(/\./g) || []).length;
-  const commaCount = (v.match(/,/g) || []).length;
+  const dotCount   = (v.match(/\./g)  || []).length;
+  const commaCount = (v.match(/,/g)   || []).length;
 
-  if (dotCount > 1 && commaCount === 0) {
-    v = v.replace(/\./g, "");
-  } else if (commaCount > 1 && dotCount === 0) {
-    v = v.replace(/,/g, "");
-  } else if (v.includes(",") && v.includes(".")) {
-    v = v.replace(/,/g, "");
-  } else if (v.includes(",")) {
-    v = v.replace(",", ".");
-  }
+  if      (dotCount > 1 && commaCount === 0)  v = v.replace(/\./g, "");
+  else if (commaCount > 1 && dotCount === 0)  v = v.replace(/,/g, "");
+  else if (v.includes(",") && v.includes(".")) v = v.replace(/,/g, "");
+  else if (v.includes(","))                   v = v.replace(",", ".");
 
   const num = parseFloat(v);
-
-  if (isNaN(num)) {
-    console.warn("⚠️ formatCurr gagal parse:", value);
-    return value;
-  }
-
-  console.log("RAW VALUE:", value);
-  console.log("STRING:", String(value));
+  if (isNaN(num)) return value;
 
   return num.toLocaleString("id-ID");
 }
 
 /**
- * Parse an Indonesian-formatted kurs string to a number.
+ * Parse an Indonesian-format kurs string to a number.
  * e.g. "16.460,00" → 16460
  */
 function parseKurs(val) {
@@ -105,7 +79,7 @@ function parseKurs(val) {
 
   let s = String(val)
     .trim()
-    .replace(/\u00A0/g, "") // non-breaking spaces
+    .replace(/\u00A0/g, "")
     .replace(/[^\d,.\-]/g, "");
 
   if (s.includes(",") && s.includes(".")) {
@@ -119,7 +93,9 @@ function parseKurs(val) {
 }
 
 /**
- * Map packaging unit strings to standard codes.
+ * Map a packaging unit string to its standard short code.
+ * e.g. "CARTON" → "CT"
+ * Depends on UNIT_MAP from constants.js.
  */
 function mapPackagingUnit(u) {
   if (!u) return "";
@@ -131,7 +107,9 @@ function mapPackagingUnit(u) {
 }
 
 /**
- * Normalize quantity unit strings to standard codes.
+ * Normalize a quantity unit string to its standard code.
+ * e.g. "PCS" → "PCE"
+ * Depends on QTY_UNIT_MAP from constants.js.
  */
 function normalizeQtyUnit(u) {
   if (!u) return "";
@@ -141,14 +119,13 @@ function normalizeQtyUnit(u) {
 
 /**
  * Produce character-level diff HTML between two strings.
- * @param {string} a - draft value
- * @param {string} b - reference value
- * @param {boolean} refSide - true = highlight b side
+ * @param {string}  a       - draft (left) value
+ * @param {string}  b       - reference (right) value
+ * @param {boolean} refSide - when true, highlights the right (ref) side
  */
 function diffText(a, b, refSide = false) {
   a = String(a ?? "");
   b = String(b ?? "");
-
   if (a === b) return a;
 
   const max = Math.max(a.length, b.length);
@@ -172,24 +149,9 @@ function diffText(a, b, refSide = false) {
 
 /**
  * Strip leading "label: " prefixes from a string.
+ * e.g. "Invoice No: INV-001" → "INV-001"
  */
 function cleanNumber(val) {
   if (!val) return "";
-  return String(val)
-    .replace(/.*?:\s*/i, "")
-    .trim();
+  return String(val).replace(/.*?:\s*/i, "").trim();
 }
-const isEqualNonZero = (a, b) => {
-  const numA = parseFloat(a);
-  const numB = parseFloat(b);
-
-  console.log("isEqualNonZero called →", { a, b, numA, numB });
-
-  if (!a || !b || numA === 0 || numB === 0 || isNaN(numA) || isNaN(numB)) {
-    console.log("→ return FALSE (ada nilai 0)");
-    return false;
-  }
-
-  console.log("→ lanjut isEqual");
-  return isEqual(a, b);
-};
