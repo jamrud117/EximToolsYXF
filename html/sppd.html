@@ -21,7 +21,10 @@
     <!-- ═══════════════════════ NAVBAR ═══════════════════════ -->
     <nav class="navbar navbar-expand-lg navbar-dark">
       <div class="container-fluid">
-        <a class="navbar-brand" href="#">
+        <a
+          class="navbar-brand d-flex justify-content-center align-items-center"
+          href="#"
+        >
           <span class="brand-badge">YXF</span>
           <span class="brand-text">Tools</span>
         </a>
@@ -131,7 +134,8 @@
                       <strong>.xlsx</strong>
                     </p>
                     <p class="upload-sub" id="uploadHint">
-                      Upload 2–3 file: Draft EXIM + INV &amp; PL (gabungan atau terpisah)
+                      Upload 2–3 file: Draft EXIM + INV &amp; PL (gabungan atau
+                      terpisah)
                     </p>
                   </div>
                   <input
@@ -287,7 +291,6 @@
       <span>Made with 💡 by YF</span>
     </footer>
 
-
     <!-- ═══════════════════════ SCRIPTS ══════════════════════ -->
     <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
@@ -314,21 +317,22 @@
           isProgrammaticChange = false;
         }
 
-        const hint  = document.getElementById("uploadHint");
+        const hint = document.getElementById("uploadHint");
         const count = this.files.length;
 
         if (count === 0) {
-          hint.textContent = "Upload 2–3 file: Draft EXIM + INV & PL (gabungan atau terpisah)";
-          hint.className   = "upload-sub";
+          hint.textContent =
+            "Upload 2–3 file: Draft EXIM + INV & PL (gabungan atau terpisah)";
+          hint.className = "upload-sub";
         } else if (count === 2 || count === 3) {
           hint.textContent = `✓ ${count} file dipilih`;
-          hint.className   = "upload-sub hint-ok";
+          hint.className = "upload-sub hint-ok";
         } else if (count > 3) {
           hint.textContent = `${count} file dipilih — maksimal 3 file`;
-          hint.className   = "upload-sub hint-warn";
+          hint.className = "upload-sub hint-warn";
         } else {
           hint.textContent = `${count} file dipilih — minimal 2 file`;
-          hint.className   = "upload-sub hint-warn";
+          hint.className = "upload-sub hint-warn";
         }
       });
     </script>
