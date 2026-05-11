@@ -68,7 +68,16 @@ function bindCheckButton() {
     if (!fileInput.files || fileInput.files.length === 0) {
       return Swal.fire({
         icon: "error", title: "Pilih File",
-        text: "Upload 3 file Excel terlebih dahulu!", scrollbarPadding: false,
+        html: "Upload <b>2 file</b> (Draft EXIM + INV&amp;PL gabungan) atau <b>3 file</b> (Draft EXIM + INV + PL terpisah).",
+        scrollbarPadding: false,
+      });
+    }
+
+    if (fileInput.files.length > 3) {
+      return Swal.fire({
+        icon: "error", title: "Terlalu Banyak File",
+        text: "Maksimal 3 file Excel yang diperbolehkan.",
+        scrollbarPadding: false,
       });
     }
 
@@ -160,30 +169,66 @@ uploadZone.addEventListener("drop", (e) => {
 
 // ── Main process orchestrator ─────────────────────────────────
 async function processFiles(files, parsedExBC) {
-  let sheetPL   = null;
-  let sheetINV  = null;
+  let sheetPL    = null;
+  let sheetINV   = null;
   let sheetsDATA = null;
-  let kontrakNo = "";
+  let kontrakNo  = "";
   let kontrakTgl = "";
 
+  // Classify every uploaded file
+  const classified = [];
   for (const file of files) {
     const wb   = await readExcelFile(file);
     const type = detectFileType(wb);
+    classified.push({ file, wb, type });
+  }
 
+  const unknownFiles = classified.filter((c) => c.type === "UNKNOWN");
+  if (unknownFiles.length > 0) {
+    const names = unknownFiles.map((c) => `<b>${c.file.name}</b>`).join(", ");
+    throw new Error(
+      `File berikut tidak dapat diidentifikasi sebagai Draft EXIM, INV, atau PL: ${names}`
+    );
+  }
+
+  // Populate sheets from classified files
+  for (const { file, wb, type } of classified) {
     if (type === "DATA") {
       sheetsDATA = wb.Sheets;
+
     } else if (type === "INV") {
       sheetINV = wb.Sheets[wb.SheetNames[0]];
+
     } else if (type === "PL") {
       sheetPL = wb.Sheets[wb.SheetNames[0]];
+      const info = extractKontrakInfoFromPL(sheetPL);
+      kontrakNo  = info.kontrakNo;
+      kontrakTgl = info.kontrakTgl;
+
+    } else if (type === "INV_PL") {
+      // Mode 2 file: satu workbook berisi INV dan PL di sheet terpisah
+      const { invSheet, plSheet } = extractSheetsFromCombined(wb);
+      sheetINV = invSheet;
+      sheetPL  = plSheet;
       const info = extractKontrakInfoFromPL(sheetPL);
       kontrakNo  = info.kontrakNo;
       kontrakTgl = info.kontrakTgl;
     }
   }
 
-  if (!sheetPL || !sheetINV || !sheetsDATA) {
-    throw new Error("File belum lengkap. Pastikan upload file Draft EXIM, INV, dan PL.");
+  // Validate completeness
+  const missing = [];
+  if (!sheetsDATA) missing.push("Draft EXIM");
+  if (!sheetINV)   missing.push("Invoice (INV)");
+  if (!sheetPL)    missing.push("Packing List (PL)");
+
+  if (missing.length > 0) {
+    throw new Error(
+      `File belum lengkap. File yang belum terdeteksi: <b>${missing.join(", ")}</b>.<br><br>` +
+      `<small>Mode yang didukung:<br>` +
+      `• <b>3 file</b>: Draft EXIM + INV (terpisah) + PL (terpisah)<br>` +
+      `• <b>2 file</b>: Draft EXIM + file gabungan INV &amp; PL (2 sheet berbeda)</small>`
+    );
   }
 
   const mappings    = JSON.parse(localStorage.getItem("companyMappings") || "{}");
