@@ -189,6 +189,26 @@ async function extractAndRender() {
   setLoading(true);
   try {
     cachedWorkbooks = await Promise.all(selectedFiles.map(readWorkbook));
+
+    // ── Auto-detect jenis BC dari workbook pertama ──────────
+    const detected = detectJenisBCFromWorkbook(cachedWorkbooks[0].wb);
+    if (detected) {
+      const jenisBC = $("jenisBC");
+      const optionExists = [...jenisBC.options].some((o) => o.value === detected);
+      if (optionExists) {
+        jenisBC.value = detected;
+      } else {
+        // Opsi belum ada di dropdown → tambahkan sementara & pilih
+        const opt = document.createElement("option");
+        opt.value = detected;
+        opt.textContent = detected;
+        jenisBC.appendChild(opt);
+        jenisBC.value = detected;
+      }
+      toggleStatusJalur();
+      filterJenisBarangByBC(detected);
+    }
+
     await extractAndRenderFromCache([], []);
   } catch (err) {
     console.error(err);

@@ -226,6 +226,79 @@ function parseResponSheet(wb, docs) {
 }
 
 /**
+ * Cek apakah entitas kode '3' di sheet ENTITAS adalah perusahaan sendiri.
+ * Digunakan untuk menentukan arah BC 2.7 (Keluar jika kode 3 = perusahaan sendiri).
+ * @param {Object} wb
+ * @returns {boolean}
+ */
+function detectMyCompanyFromEntitas(wb) {
+  const COMPANY_NAME = "CHINLI PLASTIC MATERIALS INDONESIA";
+  const sheet = wb.Sheets["ENTITAS"];
+  if (!sheet) return false;
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  const header = rows[0] || [];
+
+  const idxKode = findColIndex(header, "KODE");
+  const idxNama = findColIndex(header, "NAMA");
+  if (idxKode === -1 || idxNama === -1) return false;
+
+  for (let i = 1; i < rows.length; i++) {
+    const kode = String(rows[i][idxKode] || "").trim();
+    const nama = String(rows[i][idxNama] || "").trim().toUpperCase();
+    if (kode === "3" && nama.includes(COMPANY_NAME)) return true;
+  }
+  return false;
+}
+
+/**
+ * Deteksi jenis BC dari workbook berdasarkan KODE DOKUMEN di sheet HEADER.
+ * Untuk kode 27, arah ditentukan dari sheet ENTITAS.
+ * @param {Object} wb — XLSX workbook
+ * @returns {string|null} — e.g. "BC 2.7 Masuk", "BC 4.0 Masuk", null jika tidak dikenali
+ */
+function detectJenisBCFromWorkbook(wb) {
+  const sheet = wb.Sheets["HEADER"];
+  if (!sheet) return null;
+
+  const rows = XLSX.utils.sheet_to_json(sheet, { header: 1 });
+  const header = rows[0] || [];
+
+  const idxKodeDok = findColIndex(header, "KODE DOKUMEN");
+  if (idxKodeDok === -1) return null;
+
+  // Ambil kode dokumen pertama yang valid
+  let kodeDok = null;
+  for (let i = 1; i < rows.length; i++) {
+    const val = String(rows[i][idxKodeDok] || "")
+      .trim()
+      .replace(/\.0$/, "");
+    if (val) { kodeDok = val; break; }
+  }
+  if (!kodeDok) return null;
+
+  // Mapping kode dokumen → label jenis BC
+  const KODE_BC_MAP = {
+    "40":  "BC 4.0 Masuk",
+    "41":  "BC 4.1 Keluar",
+    "23":  "BC 2.3 Masuk",
+    "25":  "BC 2.5 Keluar",
+    "261": "BC 2.6.1 Keluar",
+    "262": "BC 2.6.2 Masuk",
+  };
+
+  if (KODE_BC_MAP[kodeDok]) return KODE_BC_MAP[kodeDok];
+
+  // BC 2.7: arah ditentukan dari sheet ENTITAS
+  if (kodeDok === "27") {
+    const isMyCompany = detectMyCompanyFromEntitas(wb);
+    return isMyCompany ? "BC 2.7 Keluar" : "BC 2.7 Masuk";
+  }
+
+  return null;
+}
+
+/**
  * Ekstrak semua dokumen dari satu workbook
  * @param {Object} wb — XLSX workbook
  * @returns {Array} array dokumen siap render/format
