@@ -70,37 +70,37 @@ const PT_CONFIG = [
   // BC 2.7
   // =========================================================
 
-  createPT("PT. YIH QUAN FOOTWEAR INDONESIA", {
+  createPT(["PT. YIH QUAN FOOTWEAR INDONESIA", "YIH QUAN FOOTWEAR INDONESIA"], {
     "BC 2.7 Masuk": ["INSOLE"],
     "BC 2.7 Keluar": ["INSOLE"],
   }),
 
-  createPT("PT. ADONIA FOOTWEAR INDONESIA", {
+  createPT(["PT. ADONIA FOOTWEAR INDONESIA", "ADONIA FOOTWEAR INDONESIA"], {
     "BC 2.7 Masuk": ["INSOLE"],
     "BC 2.7 Keluar": ["INSOLE"],
   }),
 
-  createPT("PT.SHOETOWN LIGUNG INDONESIA", {
+  createPT(["PT.SHOETOWN LIGUNG INDONESIA", "SHOETOWN LIGUNG INDONESIA"], {
     "BC 2.7 Masuk": ["INSOLE"],
     "BC 2.7 Keluar": ["INSOLE"],
   }),
 
-  createPT("BSN TECHNOLOGIES INDONESIA", {
+  createPT(["BSN TECHNOLOGIES INDONESIA", "PT. BSN TECHNOLOGIES INDONESIA"], {
     "BC 2.7 Masuk": ["LOGO"],
     "BC 2.7 Keluar": ["LOGO"],
   }),
 
-  createPT("LONG HARMONY INDUSTRY", {
+  createPT(["LONG HARMONY INDUSTRY", "PT. LONG HARMONY INDUSTRY"], {
     "BC 2.7 Masuk": ["TEXTILE"],
     "BC 2.7 Keluar": ["TEXTILE"],
   }),
 
-  createPT("CHUN CHERNG INDONESIA", {
+  createPT(["CHUN CHERNG INDONESIA", "PT. CHUN CHERNG INDONESIA"], {
     "BC 2.7 Masuk": ["TEXTILE"],
     "BC 2.7 Keluar": ["TEXTILE"],
   }),
 
-  createPT("PT. DONG JIN TEXTILE INDONESIA", {
+  createPT(["DONG JIN TEXTILE INDONESIA", "PT. DONG JIN TEXTILE INDONESIA"], {
     "BC 2.7 Masuk": ["TEXTILE"],
     "BC 2.7 Keluar": ["TEXTILE"],
   }),
