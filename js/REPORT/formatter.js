@@ -1,12 +1,14 @@
 /**
  * formatter.js — Generate teks laporan per jenis BC
  *
- * Depends on: utils.js, mapper.js
+ * Depends on: config.js, utils.js, mapper.js
  */
 
+// ─── Date Formatting ──────────────────────────────────────────────────────────
+
 /**
- * Format tanggal dokumen dari array Date menjadi string ringkasan
- * Contoh: "01/06/2025, 03-05/06/2025"
+ * Format tanggal dokumen dari array Date menjadi string ringkasan.
+ * Contoh output: "01/06/2025, 03-05/06/2025"
  */
 function formatTanggalDokumen(arr) {
   if (!arr.length) return "";
@@ -42,9 +44,9 @@ function formatTanggalDokumen(arr) {
     .join(", ");
 }
 
-/**
- * Agregasi data: total kemasan, barang, segel, tanggal dari array dokumen
- */
+// ─── Aggregation ──────────────────────────────────────────────────────────────
+
+/** Agregasi total kemasan, barang, segel, tanggal dari array dokumen */
 function buildAggregates(dataArr) {
   const kemasanMap = {};
   const barangMap = {};
@@ -64,8 +66,8 @@ function buildAggregates(dataArr) {
 }
 
 /**
- * Kelompokkan nomor BC berdasarkan jalur + jenis transaksi
- * @returns { bcGrouped: {key → [noBC]}, bcList: {jenistrx → [noBC]} }
+ * Kelompokkan nomor BC berdasarkan jalur + jenis transaksi.
+ * @returns {{ bcGrouped: Object, bcList: Object }}
  */
 function buildBCGrouped(dataArr, jalurOverrideMap, defaultJalur) {
   const bcGrouped = {};
@@ -86,9 +88,8 @@ function buildBCGrouped(dataArr, jalurOverrideMap, defaultJalur) {
   return { bcGrouped, bcList };
 }
 
-// ============================================================
-// FORMAT STRATEGY: BC 4.0 & BC 4.1
-// ============================================================
+// ─── Formatters ───────────────────────────────────────────────────────────────
+
 function formatBC4x(
   dataArr,
   rawBC,
@@ -123,9 +124,6 @@ function formatBC4x(
   ].join("\n");
 }
 
-// ============================================================
-// FORMAT STRATEGY: BC 2.7 Keluar
-// ============================================================
 function formatBC27Keluar(
   dataArr,
   jenisBarang,
@@ -140,8 +138,6 @@ function formatBC27Keluar(
   const pengirim = [
     ...new Set(dataArr.map((d) => d.pengirim).filter(Boolean)),
   ].join(" | ");
-
-  // Sort by jalur order
   const sortedKeys = Object.keys(bcGrouped).sort((a, b) => {
     const ja = a.split("|")[0].trim();
     const jb = b.split("|")[0].trim();
@@ -162,9 +158,6 @@ function formatBC27Keluar(
   ].join("\n");
 }
 
-// ============================================================
-// FORMAT STRATEGY: BC 2.7 Masuk
-// ============================================================
 function formatBC27Masuk(dataArr, jenisBarang, masukTxt) {
   const { kemasanMap, barangMap, segelList, tanggalArr } =
     buildAggregates(dataArr);
@@ -190,25 +183,113 @@ function formatBC27Masuk(dataArr, jenisBarang, masukTxt) {
   ].join("\n");
 }
 
-// ============================================================
-// ENTRY POINT — Strategy dispatcher
-// ============================================================
+/**
+ * BC 2.6.1 Keluar — jenis transaksi diambil dari data (d.jenistrx), bukan dari DOM.
+ */
+function formatBC261Keluar(dataArr, jenisBarang, masukTxt) {
+  const { kemasanMap, barangMap, tanggalArr } = buildAggregates(dataArr);
+  const entitas = [
+    ...new Set(dataArr.map((d) => d.entitasBC).filter(Boolean)),
+  ].join(" | ");
 
-/** Map BC → formatter function */
+  // Ambil label jenis transaksi langsung dari data yang sudah di-parse
+  const jenisTrxLabel = dataArr[0]?.jenistrx || "";
+  const judul = jenisTrxLabel
+    ? `BC 2.6.1 Keluar (${jenisTrxLabel})`
+    : "BC 2.6.1 Keluar";
+
+  const bcList = [...new Set(dataArr.map((d) => d.bc).filter(Boolean))];
+  const statusJalurVal = $("statusJalur")?.value || "HIJAU";
+
+  return [
+    `*${judul}*`,
+    `Suplier : ${entitas}`,
+    `No. BC 2.6.1 : ${bcList.join(", ")}`,
+    `Jenis Barang : ${jenisBarang}`,
+    `Jumlah Barang : ${formatKeyValue(barangMap)}`,
+    `Jumlah Kemasan : ${formatKeyValue(kemasanMap)}`,
+    `Tanggal Dokumen : ${formatTanggalDokumen(tanggalArr)}`,
+    `Tanggal Keluar : ${masukTxt}`,
+    `Status Jalur : ${statusJalurVal}`,
+  ].join("\n");
+}
+
+/**
+ * BC 2.6.2 Masuk — jenis transaksi diambil dari data (d.jenistrx), bukan dari DOM.
+ */
+function formatBC262Masuk(dataArr, jenisBarang, masukTxt) {
+  const { kemasanMap, barangMap, tanggalArr } = buildAggregates(dataArr);
+  const entitas = [
+    ...new Set(dataArr.map((d) => d.entitasBC).filter(Boolean)),
+  ].join(" | ");
+
+  const jenisTrxLabel = dataArr[0]?.jenistrx || "";
+  const judul = jenisTrxLabel
+    ? `BC 2.6.2 Masuk (${jenisTrxLabel})`
+    : "BC 2.6.2 Masuk (Hasil Reparasi)";
+
+  const bcList = [...new Set(dataArr.map((d) => d.bc).filter(Boolean))];
+  const statusJalurVal = $("statusJalur")?.value || "HIJAU";
+
+  return [
+    `*${judul}*`,
+    `Suplier : ${entitas}`,
+    `No. BC 2.6.2 : ${bcList.join(", ")}`,
+    `Jenis Barang : ${jenisBarang}`,
+    `Jumlah Barang : ${formatKeyValue(barangMap)}`,
+    `Jumlah Kemasan : ${formatKeyValue(kemasanMap)}`,
+    `Tanggal Dokumen : ${formatTanggalDokumen(tanggalArr)}`,
+    `Tanggal Masuk : ${masukTxt}`,
+    `Status Jalur : ${statusJalurVal}`,
+  ].join("\n");
+}
+
+function formatBC23Masuk(dataArr, jenisBarang, masukTxt) {
+  const { kemasanMap, segelList, tanggalArr, barangMap } =
+    buildAggregates(dataArr);
+  const entitas = [
+    ...new Set(dataArr.map((d) => d.entitasBC).filter(Boolean)),
+  ].join(" | ");
+  const bcList = [...new Set(dataArr.map((d) => d.bc).filter(Boolean))];
+  const statusJalurVal = $("statusJalur")?.value || "HIJAU";
+
+  return [
+    `*BC 2.3 Import*`,
+    `Suplier : ${entitas}`,
+    `No. BC 2.3 : ${bcList.join(", ")}`,
+    `No. Segel BC 2.3 : ${segelList.join(", ")}`,
+    `Jenis Barang : ${jenisBarang || "TEXTILE"}`,
+    `Jumlah Barang : ${formatKeyValue(barangMap)}`,
+    `Jumlah Kemasan : ${formatKeyValue(kemasanMap)}`,
+    `Tanggal Dokumen : ${formatTanggalDokumen(tanggalArr)}`,
+    `Tanggal Masuk : ${masukTxt}`,
+    `Status Jalur : ${statusJalurVal}`,
+  ].join("\n");
+}
+
+// ─── Strategy Dispatcher ──────────────────────────────────────────────────────
+
+/**
+ * Map BC key → formatter function.
+ * Semua formatter menerima (dataArr, rawBC, bc, arah, jenisBarang, masukTxt, jalurOverrideMap, defaultJalur)
+ * dan hanya menggunakan argumen yang diperlukan.
+ */
 const BC_FORMATTERS = {
   "BC 4.0": (arr, rawBC, bc, arah, jb, tgl, jom, dj) =>
     formatBC4x(arr, rawBC, bc, arah, jb, tgl, jom, dj),
   "BC 4.1": (arr, rawBC, bc, arah, jb, tgl, jom, dj) =>
     formatBC4x(arr, rawBC, bc, arah, jb, tgl, jom, dj),
-  "BC 2.7_Keluar": (arr, _rawBC, _bc, _arah, jb, tgl, jom, dj) =>
+  "BC 2.7_Keluar": (arr, _r, _b, _a, jb, tgl, jom, dj) =>
     formatBC27Keluar(arr, jb, tgl, jom, dj),
-  "BC 2.7_Masuk": (arr, _rawBC, _bc, _arah, jb, tgl) =>
-    formatBC27Masuk(arr, jb, tgl),
+  "BC 2.7_Masuk": (arr, _r, _b, _a, jb, tgl) => formatBC27Masuk(arr, jb, tgl),
+  "BC 2.6.1": (arr, _r, _b, _a, jb, tgl) => formatBC261Keluar(arr, jb, tgl),
+  "BC 2.6.2": (arr, _r, _b, _a, jb, tgl) => formatBC262Masuk(arr, jb, tgl),
+  "BC 2.3": (arr, _r, _b, _a, jb, tgl) => formatBC23Masuk(arr, jb, tgl),
 };
 
 /**
- * Generate teks laporan lengkap
- * @param {Array} dataArr — data dokumen (sudah di-filter)
+ * Generate teks laporan lengkap dari data yang sudah difilter.
+ * @param {Array} dataArr
  * @returns {string}
  */
 function generateResultText(dataArr) {
@@ -220,7 +301,7 @@ function generateResultText(dataArr) {
   const jenisBarang = getSelectedValues("jenisBarang").join(" + ");
   const masukTxt = fmtDate(new Date($("masukTgl").value));
 
-  // Saat MERAH: nomor daftar yg dipilih di Choices = MERAH, sisanya HIJAU
+  // Jalur override map (hanya relevan saat MERAH)
   let defaultJalur, jalurOverrideMap;
   if (statusJalurVal === "MERAH") {
     defaultJalur = "HIJAU";
@@ -233,9 +314,15 @@ function generateResultText(dataArr) {
     jalurOverrideMap = {};
   }
 
-  const key = BC_FORMATTERS[bc] ? bc : `BC 2.7_${arah}`;
-
+  // BC 2.7 punya suffix arah; yang lain langsung pakai kode BC
+  const key =
+    bc === "BC 2.7"
+      ? `BC 2.7_${arah}`
+      : BC_FORMATTERS[bc]
+      ? bc
+      : "BC 2.7_Masuk";
   const formatter = BC_FORMATTERS[key] || BC_FORMATTERS["BC 2.7_Masuk"];
+
   return formatter(
     dataArr,
     rawBC,

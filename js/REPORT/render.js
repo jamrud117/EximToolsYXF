@@ -43,10 +43,14 @@ function renderPreview(dataArr) {
           .map(([u, q]) => `<span class="qty-badge">${fmtNum(q)} ${u}</span>`)
           .join("") || '<span class="text-muted">—</span>';
 
+      const jenistrxDisplay = (d.jenistrx || "")
+        .replace(/^\d+\.\s*/, "")  // strip "1. " prefix
+        .trim() || "TIDAK DIKETAHUI";
+
       return `
     <tr>
       <td class="text-center fw-semibold text-muted">${idx + 1}</td>
-      <td><span class="jenis-badge">${d.jenistrx}</span></td>
+      <td><span class="jenis-badge">${jenistrxDisplay}</span></td>
       <td><code class="aju-code">${d.aju}</code></td>
       <td>${d.pengirim || '<span class="text-muted">—</span>'}</td>
       <td><span class="nobc-text">${d.bc || "—"}</span></td>

@@ -4,68 +4,65 @@
  * Depends on: semua modul lain (load order penting — pastikan ini terakhir)
  */
 
-let selectedFiles = [];
-let cachedWorkbooks = []; // Workbooks yang sudah dibaca dari file
+let selectedFiles    = [];
+let cachedWorkbooks  = []; // Workbooks yang sudah dibaca dari file
 
 document.addEventListener("DOMContentLoaded", () => {
-  // ─── Init ──────────────────────────────────────────────────
+
+  // ─── Init ──────────────────────────────────────────────────────────────────
   initJenisBarang();
   toggleStatusJalur();
   highlightActiveNav();
 
-  // ─── Init Choices.js ───────────────────────────────────────
+  // ─── Init Choices.js ───────────────────────────────────────────────────────
   jenisBarangSelect = new Choices("#jenisBarang", {
-    removeItemButton: true,
-    placeholder: true,
-    placeholderValue: "Pilih Jenis Barang...",
-    searchPlaceholderValue: "Cari jenis barang...",
-    shouldSort: true,
+    removeItemButton:      true,
+    placeholder:           true,
+    placeholderValue:      "Pilih Jenis Barang...",
+    searchPlaceholderValue:"Cari jenis barang...",
+    shouldSort:            true,
   });
 
   excludeAjuSelect = new Choices("#excludeAju", {
-    removeItemButton: true,
-    placeholder: true,
-    placeholderValue: "Pilih Nomor Aju...",
-    searchPlaceholderValue: "Cari Nomor Aju...",
-    shouldSort: true,
+    removeItemButton:      true,
+    placeholder:           true,
+    placeholderValue:      "Pilih Nomor Aju...",
+    searchPlaceholderValue:"Cari Nomor Aju...",
+    shouldSort:            true,
   });
 
   entitasPTSelect = new Choices("#entitasPT", {
-    removeItemButton: true,
-    placeholder: true,
-    placeholderValue: "Pilih Entitas Perusahaan...",
-    searchPlaceholderValue: "Cari Entitas...",
-    shouldSort: true,
+    removeItemButton:      true,
+    placeholder:           true,
+    placeholderValue:      "Pilih Entitas Perusahaan...",
+    searchPlaceholderValue:"Cari Entitas...",
+    shouldSort:            true,
   });
 
   jalurOverrideSelect = new Choices("#jalurOverride", {
-    removeItemButton: true,
-    placeholder: true,
-    placeholderValue: "Pilih Nomor Daftar",
-    searchPlaceholderValue: "Cari nomor daftar...",
-    shouldSort: true,
+    removeItemButton:      true,
+    placeholder:           true,
+    placeholderValue:      "Pilih Nomor Daftar",
+    searchPlaceholderValue:"Cari nomor daftar...",
+    shouldSort:            true,
   });
 
-  // Set today's date
+  // Set tanggal hari ini
   $("masukTgl").value = new Date().toISOString().slice(0, 10);
 
   // Populate jenis barang sesuai BC default
   filterJenisBarangByBC($("jenisBC").value);
 
-  // ─── Configuration events ──────────────────────────────────
+  // ─── Configuration events ──────────────────────────────────────────────────
 
   $("jenisBC").addEventListener("change", async () => {
-    toggleStatusJalur();
-
-    // Simpan pilihan sebelumnya sebelum choices di-reset
     const prevJenisBarang = getSelectedValues("jenisBarang");
-    const prevEntitas = getSelectedValues("entitasPT");
-    const prevExclude = getSelectedValues("excludeAju");
+    const prevEntitas     = getSelectedValues("entitasPT");
+    const prevExclude     = getSelectedValues("excludeAju");
 
-    // Update jenis barang, pertahankan yang masih valid di BC baru
+    toggleStatusJalur();
     filterJenisBarangByBC($("jenisBC").value, prevJenisBarang);
 
-    // Jika ada workbooks tersimpan → re-extract otomatis dengan jenisBC baru
     if (cachedWorkbooks.length) {
       await extractAndRenderFromCache(prevEntitas, prevExclude);
     }
@@ -74,22 +71,21 @@ document.addEventListener("DOMContentLoaded", () => {
   $("jenisBarang").addEventListener("change", refreshUI);
   $("entitasPT").addEventListener("change", refreshUI);
   $("excludeAju").addEventListener("change", refreshUI);
+  $("masukTgl").addEventListener("change", refreshUI);
+
   $("statusJalur").addEventListener("change", () => {
     toggleStatusJalur();
     refreshUI();
   });
+
   $("jalurOverride").addEventListener("change", refreshUI);
-  jalurOverrideSelect.passedElement.element.addEventListener(
-    "change",
-    refreshUI,
-  );
-  $("masukTgl").addEventListener("change", refreshUI);
+  jalurOverrideSelect.passedElement.element.addEventListener("change", refreshUI);
 
   $("masukTgl").addEventListener("click", function () {
-    this.showPicker?.();
+    if (this.showPicker) this.showPicker();
   });
 
-  // ─── File input ────────────────────────────────────────────
+  // ─── File input ────────────────────────────────────────────────────────────
 
   $("files").addEventListener("change", async (e) => {
     selectedFiles = Array.from(e.target.files);
@@ -107,109 +103,84 @@ document.addEventListener("DOMContentLoaded", () => {
     await extractAndRender();
   });
 
-  // ─── Copy button ───────────────────────────────────────────
+  // ─── Copy button ───────────────────────────────────────────────────────────
 
   $("copyBtn").addEventListener("click", () => {
     const text = $("result").value.trim();
-    if (!text)
-      return Swal.fire({
-        icon: "warning",
-        text: "Belum ada teks untuk disalin!",
-      });
+    if (!text) return Swal.fire({ icon: "warning", text: "Belum ada teks untuk disalin!" });
+
     navigator.clipboard.writeText(text).then(() => {
       Swal.fire({
-        toast: true,
-        position: "top-end",
-        icon: "success",
+        toast: true, position: "top-end", icon: "success",
         title: "Teks Berhasil disalin!",
-        showConfirmButton: false,
-        timer: 2000,
-        timerProgressBar: true,
+        showConfirmButton: false, timer: 2000, timerProgressBar: true,
       });
     });
   });
 
-  // ─── Reset button ──────────────────────────────────────────
+  // ─── Reset button ──────────────────────────────────────────────────────────
 
   $("clearBtn").addEventListener("click", () => {
-    selectedFiles = [];
+    selectedFiles  = [];
     cachedWorkbooks = [];
     setExtractedData([]);
 
-    // Reset file
     $("files").value = "";
     renderFileList([]);
-
-    // Reset output
     renderPreview([]);
     $("result").value = "";
     updateResultCount(0);
 
-    // Reset tanggal
-    $("masukTgl").value = new Date().toISOString().slice(0, 10);
-
-    // Reset jenis BC & jalur ke default
-    $("jenisBC").value = "BC 2.7 Masuk";
+    $("masukTgl").value  = new Date().toISOString().slice(0, 10);
+    $("jenisBC").value   = "BC 2.7 Masuk";
     $("statusJalur").value = "HIJAU";
     toggleStatusJalur();
-
-    // Reset jenis barang ke default BC, tanpa pilihan aktif
     filterJenisBarangByBC($("jenisBC").value);
 
-    // Clear entitas PT
     entitasPTSelect.clearStore();
     entitasPTSelect.clearChoices();
-
-    // Clear exclude AJU
     excludeAjuSelect.clearStore();
     excludeAjuSelect.clearChoices();
-
-    // Clear jalur override
     jalurOverrideSelect.clearStore();
     jalurOverrideSelect.clearChoices();
   });
 
-  // ─── Add jenis barang ──────────────────────────────────────
+  // ─── Tambah jenis barang ───────────────────────────────────────────────────
 
   $("addJenisBtn").addEventListener("click", handleAddJenisBarang);
   $("newJenisBarang").addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      handleAddJenisBarang();
-    }
+    if (e.key === "Enter") { e.preventDefault(); handleAddJenisBarang(); }
   });
 });
 
-// ─── Core Processing ───────────────────────────────────────────
+// ─── Core Processing ───────────────────────────────────────────────────────────
 
 /**
- * Baca semua files → simpan workbooks → extract & render
+ * Baca semua file → simpan workbooks → deteksi BC → extract & render
  */
 async function extractAndRender() {
   setLoading(true);
   try {
     cachedWorkbooks = await Promise.all(selectedFiles.map(readWorkbook));
 
-    // ── Auto-detect jenis BC dari workbook pertama ──────────
+    // Deteksi jenis BC dari file pertama
     const detected = detectJenisBCFromWorkbook(cachedWorkbooks[0].wb);
     if (detected) {
       const jenisBC = $("jenisBC");
       const optionExists = [...jenisBC.options].some((o) => o.value === detected);
-      if (optionExists) {
-        jenisBC.value = detected;
-      } else {
-        // Opsi belum ada di dropdown → tambahkan sementara & pilih
+      if (!optionExists) {
         const opt = document.createElement("option");
-        opt.value = detected;
+        opt.value       = detected;
         opt.textContent = detected;
         jenisBC.appendChild(opt);
-        jenisBC.value = detected;
       }
+      jenisBC.value = detected;
       toggleStatusJalur();
       filterJenisBarangByBC(detected);
     }
 
     await extractAndRenderFromCache([], []);
+
   } catch (err) {
     console.error(err);
     Swal.fire({
@@ -223,19 +194,22 @@ async function extractAndRender() {
 }
 
 /**
- * Extract dari workbooks tersimpan → populate choices → render
- * @param {string[]} prevEntitas — nilai entitas sebelumnya (dipertahankan jika masih valid)
- * @param {string[]} prevExclude — nilai AJU exclude sebelumnya (dipertahankan jika masih valid)
+ * Extract dari workbooks tersimpan → populate Choices → terapkan PT config → render
+ * @param {string[]} prevEntitas — entitas sebelumnya (dipertahankan jika masih valid)
+ * @param {string[]} prevExclude — AJU exclude sebelumnya (dipertahankan jika masih valid)
  */
 async function extractAndRenderFromCache(prevEntitas = [], prevExclude = []) {
   setLoading(true);
   try {
-    const extracted = cachedWorkbooks.flatMap(({ wb }) =>
-      extractMultipleDocuments(wb),
-    );
+    const extracted = cachedWorkbooks.flatMap(({ wb }) => extractMultipleDocuments(wb));
     setExtractedData(extracted);
+
     populateEntitas(extracted, prevEntitas);
     populateExcludeAju(extracted, prevExclude);
+
+    // Auto-pilih jenis barang berdasarkan PT yang terdeteksi
+    applyPTConfig(extracted, $("jenisBC").value);
+
     refreshUI();
   } catch (err) {
     console.error(err);
@@ -249,25 +223,19 @@ async function extractAndRenderFromCache(prevEntitas = [], prevExclude = []) {
   }
 }
 
-// ─── Helpers ───────────────────────────────────────────────────
+// ─── Helpers ──────────────────────────────────────────────────────────────────
 
-/**
- * Tambah jenis barang baru
- */
+/** Tambah jenis barang baru dari input user */
 function handleAddJenisBarang() {
-  const input = $("newJenisBarang");
-  const value = input.value.trim().toUpperCase();
+  const input  = $("newJenisBarang");
+  const value  = input.value.trim().toUpperCase();
   if (!value) return;
 
   const jenisBC = $("jenisBC").value;
   const success = addJenisBarang(jenisBC, value);
 
   if (!success) {
-    Swal.fire({
-      icon: "warning",
-      title: "Duplikat",
-      text: `"${value}" sudah ada dalam daftar.`,
-    });
+    Swal.fire({ icon: "warning", title: "Duplikat", text: `"${value}" sudah ada dalam daftar.` });
     return;
   }
 
@@ -277,9 +245,7 @@ function handleAddJenisBarang() {
   input.value = "";
 }
 
-/**
- * Highlight nav-link aktif berdasarkan URL
- */
+/** Highlight nav-link aktif berdasarkan URL */
 function highlightActiveNav() {
   const current = window.location.pathname.split("/").pop() || "index.html";
   document.querySelectorAll(".navbar-nav .nav-link").forEach((link) => {

@@ -1,29 +1,12 @@
 /**
- * jenisBarangStore.js — Penyimpanan jenis barang per jenis BC di localStorage
+ * jenisBarangStore.js — Penyimpanan & manajemen jenis barang per BC
+ *
+ * Depends on: config.js (DEFAULT_JENIS_BARANG)
  */
 
 const JENIS_BARANG_KEY = "yxf_jenis_barang";
 
-const DEFAULT_JENIS_BARANG = {
-  "BC 2.7 Masuk": [
-    "INSOLE",
-    "EVA FOOTBED",
-    "PU FOAM",
-    "TEXTILE",
-    "LOGO",
-    "BOX KEMASAN",
-  ],
-  "BC 2.7 Keluar": ["INSOLE", "EVA FOOTBED", "TEXTILE", "BOX KEMASAN"],
-  "BC 4.0 Masuk": [
-    "SMART FOAM",
-    "PU FOAM",
-    "CHEMICAL",
-    "CARTON BOX",
-    "STICKER FIFO",
-    "PRINT FILM",
-  ],
-  "BC 4.1 Keluar": ["SMART FOAM", "PU FOAM", "CHEMICAL"],
-};
+// ─── Persistence ──────────────────────────────────────────────────────────────
 
 function loadJenisBarang() {
   try {
@@ -37,20 +20,32 @@ function saveJenisBarang(data) {
   localStorage.setItem(JENIS_BARANG_KEY, JSON.stringify(data));
 }
 
-/** Inisialisasi storage dengan data default jika belum ada */
+// ─── Init ─────────────────────────────────────────────────────────────────────
+
+/** Isi storage dengan data default jika BC belum ada */
 function initJenisBarang() {
-  if (!localStorage.getItem(JENIS_BARANG_KEY)) {
-    saveJenisBarang(DEFAULT_JENIS_BARANG);
+  const stored = loadJenisBarang();
+  let changed = false;
+  for (const [bc, items] of Object.entries(DEFAULT_JENIS_BARANG)) {
+    if (!stored[bc]) {
+      stored[bc] = items;
+      changed = true;
+    }
   }
+  if (changed) saveJenisBarang(stored);
 }
+
+// ─── Read ─────────────────────────────────────────────────────────────────────
 
 /** Ambil daftar jenis barang untuk satu jenis BC */
 function getJenisBarangByBC(jenisBC) {
   return loadJenisBarang()[jenisBC] || [];
 }
 
+// ─── Write ────────────────────────────────────────────────────────────────────
+
 /**
- * Tambah jenis barang baru ke storage
+ * Tambah satu jenis barang baru ke storage.
  * @returns {boolean} false jika sudah ada (duplicate)
  */
 function addJenisBarang(jenisBC, value) {
@@ -60,4 +55,25 @@ function addJenisBarang(jenisBC, value) {
   data[jenisBC].push(value);
   saveJenisBarang(data);
   return true;
+}
+
+/**
+ * Pastikan semua item ada di store untuk BC tertentu.
+ * Item yang belum ada ditambahkan otomatis (tanpa duplikat).
+ * @param {string}   jenisBC
+ * @param {string[]} items
+ * @returns {string[]} item yang benar-benar baru ditambahkan
+ */
+function ensureJenisBarang(jenisBC, items) {
+  const data = loadJenisBarang();
+  if (!data[jenisBC]) data[jenisBC] = [];
+  const added = [];
+  items.forEach((item) => {
+    if (!data[jenisBC].includes(item)) {
+      data[jenisBC].push(item);
+      added.push(item);
+    }
+  });
+  if (added.length) saveJenisBarang(data);
+  return added;
 }

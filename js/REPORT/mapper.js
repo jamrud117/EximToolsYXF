@@ -1,50 +1,34 @@
 /**
- * mapper.js — Mapping konstanta & rule bisnis BC
+ * mapper.js — Fungsi-fungsi mapping & helper bisnis BC
+ *
+ * Depends on: config.js
  */
 
-const JENIS_TRANSAKSI_MAP = {
-  1: "PENYERAHAN BKP",
-  2: "PENYERAHAN JKP",
-  3: "RETUR",
-  4: "NON PENYERAHAN",
-  5: "LAINNYA",
-};
-
-/** Mapping kode entitas per jenis BC */
-const KODE_ENTITAS_BC_MAP = {
-  "BC 4.0": 9,
-  "BC 4.1": 8,
-  "BC 2.5": 8,
-  "BC 2.6.1": 8,
-  "BC 2.6.2": 9,
-  "BC 2.3": 5,
-};
-
-/** Prioritas kode respon untuk menentukan tanggal dokumen */
-const PRIORITAS_KODE = [
-  "2303",
-  "2503",
-  "26108",
-  "26202",
-  "2703",
-  "4003",
-  "4103",
-];
-
-/** Urutan jalur untuk sorting */
-const JALUR_ORDER = { HIJAU: 1, MERAH: 2, KUNING: 3 };
+// ─── Jenis Transaksi ──────────────────────────────────────────────────────────
 
 /**
- * Mapping kode tujuan pengiriman → label jenis transaksi
+ * Mapping kode tujuan → label jenis transaksi untuk BC 2.6.x
+ * @param {string} bc   — "BC 2.6.1" | "BC 2.6.2"
+ * @param {string} kode — kode numerik dari file
+ */
+function mapJenisTrxBC26(bc, kode) {
+  const map = BC26_JENIS_TRX_MAP[bc] || {};
+  return map[String(kode).replace(/\.0$/, "")] || "TIDAK DIKETAHUI";
+}
+
+/**
+ * Mapping kode tujuan pengiriman → label jenis transaksi (BC umum)
  * @param {string|number} kode
  */
 function mapJenisTransaksi(kode) {
   return JENIS_TRANSAKSI_MAP[String(kode)] || "TIDAK DIKETAHUI";
 }
 
+// ─── BC Helpers ───────────────────────────────────────────────────────────────
+
 /**
  * Tentukan kode entitas berdasarkan jenis BC dan arah
- * @param {string} bc  — e.g. "BC 2.7"
+ * @param {string} bc   — e.g. "BC 2.7"
  * @param {string} arah — "Masuk" | "Keluar"
  * @returns {number|null}
  */
@@ -55,14 +39,50 @@ function getKodeEntitas(bc, arah) {
 
 /**
  * Pecah string "BC 2.7 Masuk" → { bc: "BC 2.7", arah: "Masuk" }
+ * @param {string} raw
  */
 function parseJenisBC(raw) {
   const parts = raw.trim().split(" ");
   return { bc: `${parts[0]} ${parts[1]}`, arah: parts[2] || "" };
 }
 
+// ─── PT Config Helpers ────────────────────────────────────────────────────────
+
 /**
- * Parse teks jalur override multi-line
+ * Cari entri PT_CONFIG yang cocok dengan nama entitas.
+ * @param {string} entityName
+ * @returns {Object|null}
+ */
+function findPTConfig(entityName) {
+  const upper = entityName.toUpperCase();
+  return (
+    PT_CONFIG.find((cfg) =>
+      cfg.match.some((keyword) => upper.includes(keyword.toUpperCase()))
+    ) || null
+  );
+}
+
+/**
+ * Kumpulkan semua jenis barang dari PT_CONFIG yang cocok
+ * dengan daftar entitas terdeteksi, untuk BC tertentu.
+ *
+ * @param {string[]} entityNames — nama entitas dari file
+ * @param {string}   jenisBC     — BC aktif (e.g. "BC 2.6.1 Keluar")
+ * @returns {string[]} jenis barang unik dari semua PT yang cocok
+ */
+function getJenisBarangFromPTConfig(entityNames, jenisBC) {
+  const result = new Set();
+  entityNames.forEach((name) => {
+    const cfg = findPTConfig(name);
+    if (cfg?.jenisBarang?.[jenisBC]) {
+      cfg.jenisBarang[jenisBC].forEach((item) => result.add(item));
+    }
+  });
+  return [...result];
+}
+
+/**
+ * Parse teks jalur override multi-line.
  * Format: "MERAH = 123456, 789012"
  * @returns {Object} map { noBC|noAju: "JALUR" }
  */

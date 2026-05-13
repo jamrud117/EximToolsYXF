@@ -1,7 +1,7 @@
 /**
  * uiController.js — Kontrol state UI: toggle form, filter data, Choices.js
  *
- * Depends on: utils.js, jenisBarangStore.js, render.js, formatter.js
+ * Depends on: config.js, utils.js, jenisBarangStore.js, mapper.js, render.js, formatter.js
  */
 
 /** Choices.js instances (diinisialisasi di eventHandler.js) */
@@ -10,27 +10,23 @@ let excludeAjuSelect;
 let entitasPTSelect;
 let jalurOverrideSelect;
 
-// ============================================================
-// CHOICES HELPERS
-// ============================================================
+// ─── Jenis Barang ─────────────────────────────────────────────────────────────
 
 /**
- * Isi pilihan jenis barang sesuai BC aktif
- * @param {string}   jenisBC     — nilai jenisBC saat ini
- * @param {string[]} prevValues  — nilai pilihan sebelumnya yang ingin dipertahankan
+ * Refresh pilihan Jenis Barang sesuai BC aktif, pertahankan pilihan yang masih valid.
+ * @param {string}   jenisBC
+ * @param {string[]} prevValues — pilihan sebelumnya yang dipertahankan jika masih ada
  */
 function filterJenisBarangByBC(jenisBC, prevValues = []) {
   const items = getJenisBarangByBC(jenisBC);
+
   jenisBarangSelect.clearStore();
   jenisBarangSelect.clearChoices();
   jenisBarangSelect.setChoices(
     items.map((v) => ({ value: v, label: v })),
-    "value",
-    "label",
-    true
+    "value", "label", true
   );
 
-  // Pertahankan pilihan yang masih valid di BC baru
   if (prevValues.length) {
     const validSet = new Set(items);
     prevValues.forEach((v) => {
@@ -40,10 +36,46 @@ function filterJenisBarangByBC(jenisBC, prevValues = []) {
   jenisBarangSelect._render();
 }
 
+// ─── PT Config Auto-Select ────────────────────────────────────────────────────
+
 /**
- * Isi pilihan entitas PT dari data yang sudah di-parse
- * @param {Array}    dataArr    — array dokumen hasil ekstraksi
- * @param {string[]} prevValues — nilai entitas sebelumnya yang ingin dipertahankan
+ * Terapkan konfigurasi PT: deteksi entitas dari data, cocokkan dengan PT_CONFIG,
+ * tambahkan item yang belum ada ke store, lalu auto-pilih semua item PT yang cocok.
+ *
+ * Pilihan yang sudah dibuat user TIDAK ditimpa — hanya ditambahkan.
+ *
+ * @param {Array}  dataArr — data dokumen hasil ekstraksi
+ * @param {string} jenisBC — BC aktif
+ */
+function applyPTConfig(dataArr, jenisBC) {
+  const entityNames = [...new Set(dataArr.map((d) => d.entitasBC).filter(Boolean))];
+  if (!entityNames.length) return;
+
+  const ptItems = getJenisBarangFromPTConfig(entityNames, jenisBC);
+  if (!ptItems.length) return;
+
+  // Tambahkan item yang belum ada di store → refresh dropdown jika ada perubahan
+  const added = ensureJenisBarang(jenisBC, ptItems);
+  if (added.length) {
+    const currentSelected = getSelectedValues("jenisBarang");
+    filterJenisBarangByBC(jenisBC, currentSelected);
+  }
+
+  // Auto-pilih semua item PT config yang belum dipilih
+  const alreadySelected = new Set(getSelectedValues("jenisBarang"));
+  ptItems.forEach((item) => {
+    if (!alreadySelected.has(item)) {
+      try { jenisBarangSelect.setChoiceByValue(item); } catch (_) { /* item mungkin belum render */ }
+    }
+  });
+}
+
+// ─── Entitas & AJU Choices ────────────────────────────────────────────────────
+
+/**
+ * Isi pilihan entitas PT dari data yang sudah di-parse.
+ * @param {Array}    dataArr
+ * @param {string[]} prevValues — dipertahankan jika masih valid
  */
 function populateEntitas(dataArr, prevValues = []) {
   const entitasList = [
@@ -54,12 +86,9 @@ function populateEntitas(dataArr, prevValues = []) {
   entitasPTSelect.clearChoices();
   entitasPTSelect.setChoices(
     entitasList.map((e) => ({ value: e, label: e })),
-    "value",
-    "label",
-    true
+    "value", "label", true
   );
 
-  // Pertahankan pilihan yang masih valid
   if (prevValues.length) {
     const validSet = new Set(entitasList);
     prevValues.forEach((v) => {
@@ -69,9 +98,9 @@ function populateEntitas(dataArr, prevValues = []) {
 }
 
 /**
- * Isi pilihan exclude AJU dari data yang sudah di-parse
- * @param {Array}    dataArr    — array dokumen hasil ekstraksi
- * @param {string[]} prevValues — nilai AJU exclude sebelumnya yang ingin dipertahankan
+ * Isi pilihan exclude AJU dari data yang sudah di-parse.
+ * @param {Array}    dataArr
+ * @param {string[]} prevValues — dipertahankan jika masih valid
  */
 function populateExcludeAju(dataArr, prevValues = []) {
   const ajuList = [...new Set(dataArr.map((d) => d.aju).filter(Boolean))];
@@ -80,12 +109,9 @@ function populateExcludeAju(dataArr, prevValues = []) {
   excludeAjuSelect.clearChoices();
   excludeAjuSelect.setChoices(
     ajuList.map((aju) => ({ value: aju, label: aju })),
-    "value",
-    "label",
-    true
+    "value", "label", true
   );
 
-  // Pertahankan pilihan yang masih valid
   if (prevValues.length) {
     const validSet = new Set(ajuList);
     prevValues.forEach((v) => {
@@ -95,13 +121,13 @@ function populateExcludeAju(dataArr, prevValues = []) {
 }
 
 /**
- * Isi pilihan Nomor Daftar (BC) untuk jalur override dari data terfilter
- * @param {string[]} prevValues — nilai BC sebelumnya yang ingin dipertahankan
+ * Isi pilihan Nomor Daftar (BC) untuk jalur override dari data terfilter.
+ * @param {string[]} prevValues — dipertahankan jika masih valid
  */
 function populateJalurOverride(prevValues = []) {
   if (!jalurOverrideSelect) return;
-  const allData = getExtractedData();
 
+  const allData = getExtractedData();
   const selectedEntitas = new Set(
     Array.from($("entitasPT").selectedOptions).map((o) => o.value)
   );
@@ -109,30 +135,23 @@ function populateJalurOverride(prevValues = []) {
     Array.from($("excludeAju").selectedOptions).map((o) => o.value)
   );
 
-  const sourceData = selectedEntitas.size
-    ? allData.filter((d) => selectedEntitas.has(d.entitasBC))
-    : allData;
-  const filteredData = excluded.size
-    ? sourceData.filter((d) => !excluded.has(d.aju))
-    : sourceData;
+  const sourceData   = selectedEntitas.size ? allData.filter((d) => selectedEntitas.has(d.entitasBC)) : allData;
+  const filteredData = excluded.size ? sourceData.filter((d) => !excluded.has(d.aju)) : sourceData;
 
   const newBcList = [...new Set(filteredData.map((d) => d.bc).filter(Boolean))];
-  const newBcSet = new Set(newBcList);
+  const newBcSet  = new Set(newBcList);
 
-  const keepSelected =
-    prevValues.length > 0
-      ? prevValues
-      : Array.from($("jalurOverride").selectedOptions)
-          .map((o) => o.value)
-          .filter((v) => newBcSet.has(v));
+  const keepSelected = prevValues.length > 0
+    ? prevValues
+    : Array.from($("jalurOverride").selectedOptions)
+        .map((o) => o.value)
+        .filter((v) => newBcSet.has(v));
 
   jalurOverrideSelect.clearStore();
   jalurOverrideSelect.clearChoices();
   jalurOverrideSelect.setChoices(
     newBcList.map((bc) => ({ value: bc, label: bc })),
-    "value",
-    "label",
-    true
+    "value", "label", true
   );
   keepSelected.forEach((v) => {
     if (newBcSet.has(v)) jalurOverrideSelect.setChoiceByValue(v);
@@ -140,10 +159,8 @@ function populateJalurOverride(prevValues = []) {
 }
 
 /**
- * Sinkronisasi pilihan Kecualikan AJU berdasarkan Entitas PT yang dipilih.
- * Jika entitas dipilih → hanya tampilkan AJU milik entitas tersebut.
- * Jika tidak ada entitas dipilih → tampilkan semua AJU dari data.
- * Pilihan AJU yang sudah dicentang dipertahankan selama masih ada di daftar baru.
+ * Sinkronisasi daftar AJU ke entitas yang dipilih.
+ * Pilihan AJU yang sudah dicentang dipertahankan jika masih ada.
  */
 function syncExcludeAjuToEntitas() {
   const allData = getExtractedData();
@@ -152,16 +169,13 @@ function syncExcludeAjuToEntitas() {
   const selectedEntitas = new Set(
     Array.from($("entitasPT").selectedOptions).map((o) => o.value)
   );
-
-  // Tentukan data sumber untuk daftar AJU
   const sourceData = selectedEntitas.size
     ? allData.filter((d) => selectedEntitas.has(d.entitasBC))
     : allData;
 
   const newAjuList = [...new Set(sourceData.map((d) => d.aju).filter(Boolean))];
-  const newAjuSet = new Set(newAjuList);
+  const newAjuSet  = new Set(newAjuList);
 
-  // Simpan pilihan yang sudah ada & masih valid di daftar baru
   const prevExcluded = Array.from($("excludeAju").selectedOptions)
     .map((o) => o.value)
     .filter((v) => newAjuSet.has(v));
@@ -170,21 +184,17 @@ function syncExcludeAjuToEntitas() {
   excludeAjuSelect.clearChoices();
   excludeAjuSelect.setChoices(
     newAjuList.map((aju) => ({ value: aju, label: aju })),
-    "value",
-    "label",
-    true
+    "value", "label", true
   );
-
-  // Kembalikan pilihan yang masih valid
   prevExcluded.forEach((v) => excludeAjuSelect.setChoiceByValue(v));
 }
 
+// ─── Data Filtering ───────────────────────────────────────────────────────────
+
 /**
- * Filter data: buang dokumen yang entitasnya tidak dipilih (jika ada filter),
- * dan buang AJU yang di-exclude oleh user
+ * Filter data berdasarkan entitas PT dan exclude AJU yang dipilih.
  */
 function filterData(dataArr) {
-  // Filter entitas PT (jika ada yang dipilih, tampilkan hanya yang dipilih)
   const selectedEntitas = new Set(
     Array.from($("entitasPT").selectedOptions).map((o) => o.value)
   );
@@ -192,26 +202,21 @@ function filterData(dataArr) {
     ? dataArr.filter((d) => selectedEntitas.has(d.entitasBC))
     : dataArr;
 
-  // Filter exclude AJU
   const excluded = new Set(
     Array.from($("excludeAju").selectedOptions).map((o) => o.value)
   );
-  if (excluded.size) {
-    filtered = filtered.filter((d) => !excluded.has(d.aju));
-  }
+  if (excluded.size) filtered = filtered.filter((d) => !excluded.has(d.aju));
 
   return filtered;
 }
 
-/** Re-render preview & result text dengan data yang sudah difilter */
+// ─── Refresh ──────────────────────────────────────────────────────────────────
+
+/** Re-render preview & result text dengan data terfilter */
 function refreshUI() {
-  // Sinkronisasi daftar AJU dulu sesuai entitas yang dipilih
   syncExcludeAjuToEntitas();
 
-  // Sinkronisasi daftar Nomor Daftar (BC) untuk jalur override (hanya saat MERAH)
-  if ($("statusJalur").value === "MERAH") {
-    populateJalurOverride();
-  }
+  if ($("statusJalur").value === "MERAH") populateJalurOverride();
 
   const filtered = filterData(getExtractedData());
   renderPreview(filtered);
@@ -219,57 +224,43 @@ function refreshUI() {
   updateResultCount(filtered.length);
 }
 
-// ============================================================
-// FORM TOGGLE
-// ============================================================
+// ─── Form Toggle ──────────────────────────────────────────────────────────────
 
 /**
- * Tampilkan/sembunyikan field jalur & sesuaikan grid berdasarkan jenis BC dan status jalur.
- * - jalurOverrideWrap hanya muncul saat statusJalur = MERAH (berada di dalam filterGroup)
- * - filterGroup pindah ke kanan (colKanan) saat HIJAU/KUNING, ke kiri (colKiri) saat MERAH
+ * Tampilkan/sembunyikan field berdasarkan jenis BC dan status jalur.
+ * Mengatur grid layout, label dinamis, dan posisi filterGroup.
  */
 function toggleStatusJalur() {
-  const jenisBC = $("jenisBC").value;
+  const jenisBC    = $("jenisBC").value;
   const statusJalur = $("statusJalur").value;
-  const isBC4 = jenisBC.startsWith("BC 4.");
-  const isMasuk = jenisBC.includes("Masuk");
-  const showJalur = isBC4 || !isMasuk;
+  const isBC4      = jenisBC.startsWith("BC 4.");
+  const isMasuk    = jenisBC.includes("Masuk");
+
+  // BC 2.6.2 Masuk & BC 2.3 Masuk ditampilkan layaknya dokumen keluar (jalur terlihat)
+  const forceShowJalur = jenisBC === "BC 2.6.2 Masuk" || jenisBC === "BC 2.3 Masuk";
+  const showJalur      = isBC4 || !isMasuk || forceShowJalur;
 
   // Label dinamis
   $("headerPengirim").textContent = isMasuk ? "PENGIRIM" : "PENERIMA";
-  $("labelTanggal").textContent = isMasuk ? "Tanggal Masuk" : "Tanggal Keluar";
+  $("labelTanggal").textContent   = isMasuk ? "Tanggal Masuk" : "Tanggal Keluar";
 
-  // Toggle visibility status jalur dropdown
-  $("statusJalurWrap").style.display = showJalur ? "" : "none";
-
-  // jalurOverrideWrap hanya muncul bila jalur aktif DAN dipilih MERAH
+  // Toggle status jalur & override
+  $("statusJalurWrap").style.display  = showJalur ? "" : "none";
   const isJalurMerah = showJalur && statusJalur === "MERAH";
   $("jalurOverrideWrap").style.display = isJalurMerah ? "" : "none";
 
-  // ── PINDAH FILTER GROUP ──────────────────────────────────
-  // filterGroup (beserta jalurOverrideWrap di dalamnya) ikut pindah:
-  // HIJAU / KUNING → kanan  |  MERAH → kiri
+  // Pindah filterGroup: MERAH → kolom kiri, lainnya → kolom kanan
   const filterGroup = $("filterGroup");
-
   if (isJalurMerah) {
     $("colKiri").appendChild(filterGroup);
   } else {
-    const colKanan = $("colKanan");
-
-    // ambil row pertama (tanggal + jenis BC + status jalur)
-    const firstRow = colKanan.querySelector(".row");
-
-    // cari elemen setelah row
-    const next = firstRow.nextElementSibling;
-
-    if (next) {
-      colKanan.insertBefore(filterGroup, next);
-    } else {
-      colKanan.appendChild(filterGroup);
-    }
+    const colKanan  = $("colKanan");
+    const firstRow  = colKanan.querySelector(".row");
+    const next      = firstRow?.nextElementSibling;
+    next ? colKanan.insertBefore(filterGroup, next) : colKanan.appendChild(filterGroup);
   }
 
-  // Grid col adjustment
+  // Grid adjustment
   const colSize = showJalur ? "col-xl-4" : "col-xl-6";
   ["col-xl-4", "col-xl-6"].forEach((c) => {
     $("colTanggal").classList.remove(c);
@@ -279,22 +270,15 @@ function toggleStatusJalur() {
   $("colJenisBC").classList.add(colSize);
 }
 
-// ============================================================
-// LOADING STATE
-// ============================================================
+// ─── Loading State ────────────────────────────────────────────────────────────
 
 function setLoading(isLoading) {
   const overlay = $("loadingOverlay");
-  if (isLoading) {
-    if (overlay) overlay.classList.remove("d-none");
-  } else {
-    if (overlay) overlay.classList.add("d-none");
-  }
+  if (!overlay) return;
+  isLoading ? overlay.classList.remove("d-none") : overlay.classList.add("d-none");
 }
 
-// ============================================================
-// MISC UI
-// ============================================================
+// ─── Badge ────────────────────────────────────────────────────────────────────
 
 /** Update badge jumlah dokumen di preview header */
 function updateResultCount(count) {
