@@ -1,5 +1,5 @@
 /* ══════════════════════════════════════════════════════════
-   🎨 YXF Blue Theme — styles_sppd.css
+   🎨 YXF Blue Theme — styles_sppd.css  v3
    Design system synced with style_rp.css
 ══════════════════════════════════════════════════════════ */
 @import url("https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap");
@@ -19,7 +19,6 @@
   --text-muted: #6b7a99;
   --text-label: #1e3a8a;
 
-  /* Result colors */
   --color-match: #d1fae5;
   --color-match-text: #065f46;
   --color-mismatch: #fee2e2;
@@ -143,7 +142,7 @@ body::-webkit-scrollbar {
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow);
   border: 1px solid var(--border-soft);
-  overflow: hidden;
+  overflow: visible;
   transition: box-shadow 0.2s ease;
 }
 
@@ -167,12 +166,12 @@ body::-webkit-scrollbar {
   color: var(--text-label);
   letter-spacing: 0.03em;
   text-transform: uppercase;
+  border-radius: var(--radius-lg) var(--radius-lg) 0 0;
 }
 
 .section-icon {
   font-size: 15px;
 }
-
 .card-body-inner {
   padding: 24px;
 }
@@ -188,14 +187,16 @@ body::-webkit-scrollbar {
   padding: 24px 20px;
   background: var(--primary-light);
   cursor: pointer;
-  transition: all 0.2s ease;
-  transition: background-color 0.2s, border-color 0.2s;
+  transition:
+    background-color 0.2s,
+    border-color 0.2s;
 }
+
 .upload-zone.drag-over {
   background-color: #eff6ff;
   border-color: #3b82f6;
-  border-style: dashed;
 }
+
 .upload-zone:hover {
   border-color: var(--accent);
   background: rgba(59, 130, 246, 0.06);
@@ -272,7 +273,9 @@ body::-webkit-scrollbar {
   font-size: 13.5px;
   color: var(--text-main);
   box-shadow: var(--shadow-sm) !important;
-  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease;
 }
 
 .form-control:focus,
@@ -336,7 +339,6 @@ textarea.form-control {
 .btn-action-primary:active {
   transform: translateY(0);
 }
-
 .btn-action-primary:disabled {
   opacity: 0.65;
   cursor: not-allowed;
@@ -364,15 +366,47 @@ textarea.form-control {
 
 .result-table {
   width: 100%;
+  /*
+   * table-layout: fixed — critical for column stability.
+   * Without this, the browser recalculates column widths whenever
+   * rows collapse/expand, causing the header labels to shift position.
+   * With fixed layout, widths are set by <col> elements and never
+   * change regardless of row visibility.
+   */
+  table-layout: fixed;
   border-collapse: separate;
   border-spacing: 0;
   font-size: 13px;
+}
+
+/*
+ * Column widths (must match <colgroup> in HTML).
+ * PEMERIKSAAN   22% — check label
+ * DRAFT EXIM    34% — draft value
+ * DATA INV & PL 34% — reference value
+ * HASIL         10% — badge
+ */
+.result-table col.col-check {
+  width: 22%;
+}
+.result-table col.col-draft {
+  width: 34%;
+}
+.result-table col.col-ref {
+  width: 34%;
+}
+.result-table col.col-result {
+  width: 10%;
 }
 
 .result-table thead {
   position: sticky;
   top: 0;
   z-index: 20;
+  /* GPU compositing layer — prevents thead flicker during tbody animations */
+  will-change: transform;
+  transform: translateZ(0);
+  backface-visibility: hidden;
 }
 
 .result-table thead th {
@@ -385,6 +419,9 @@ textarea.form-control {
   padding: 12px 16px;
   border: none;
   white-space: nowrap;
+  /* Prevent text from clipping in fixed layout */
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .result-table thead th:last-child {
@@ -397,12 +434,14 @@ textarea.form-control {
   vertical-align: middle;
   background: #fff;
   line-height: 1.4;
+  /* Clip overflowing content gracefully in fixed-layout columns */
+  overflow: hidden;
+  word-break: break-word;
 }
 
 .result-table tbody td:last-child {
   text-align: center;
 }
-
 .result-table tbody tr:last-child td {
   border-bottom: none;
 }
@@ -426,10 +465,11 @@ textarea.form-control {
 /* ─── Match / Mismatch rows ──────────────────────────────── */
 .result-table tbody tr.match td {
   background-color: var(--color-match) !important;
+  color: var(--color-match-text);
 }
-
 .result-table tbody tr.mismatch td {
   background-color: var(--color-mismatch) !important;
+  color: var(--color-mismatch-text);
 }
 
 /* ─── Status Badges ──────────────────────────────────────── */
@@ -441,6 +481,7 @@ textarea.form-control {
   font-size: 11.5px;
   font-weight: 700;
   letter-spacing: 0.3px;
+  white-space: nowrap;
 }
 
 .badge-match {
@@ -474,9 +515,9 @@ textarea.form-control {
 }
 
 /* ─── Section Header rows (collapsible) ──────────────────── */
-.exbc-header td,
-.general-header td,
-.barang-header td {
+.result-table tbody tr.exbc-header td,
+.result-table tbody tr.general-header td,
+.result-table tbody tr.barang-header td {
   background: var(--primary-dark) !important;
   color: #fff !important;
   font-weight: 700;
@@ -486,39 +527,42 @@ textarea.form-control {
   padding: 10px 16px;
   cursor: pointer;
   user-select: none;
+  /* Override word-break for headers — single row */
+  word-break: normal;
+  overflow: visible;
 }
 
-.exbc-header:hover td,
-.general-header:hover td,
-.barang-header:hover td {
+.result-table tbody tr.exbc-header:hover td,
+.result-table tbody tr.general-header:hover td,
+.result-table tbody tr.barang-header:hover td {
   background: #243a66 !important;
 }
 
+/* ─── Chevron ─────────────────────────────────────────────── */
 .collapse-icon {
   display: inline-flex;
   align-items: center;
-  transition: transform 0.2s ease;
+  justify-content: center;
   vertical-align: middle;
+  margin-right: 4px;
+  transition: transform 0.26s cubic-bezier(0.4, 0, 0.2, 1);
 }
 
-.exbc-header.open .collapse-icon,
-.general-header.open .collapse-icon,
-.barang-header.open .collapse-icon {
+.result-table tbody tr.open .collapse-icon {
   transform: rotate(90deg);
 }
 
 /* ─── Collapsed rows ─────────────────────────────────────── */
 .result-table tbody tr.row-collapsed {
-  visibility: collapse;
+  display: none !important;
 }
 
-.result-table tbody tr.row-collapsed td {
-  padding-top: 0 !important;
-  padding-bottom: 0 !important;
-  line-height: 0 !important;
-  border: 0 !important;
-  opacity: 0;
-  transition: all 0.2s ease;
+/* Data row td — only background-color transition. */
+.result-table
+  tbody
+  tr:not(.exbc-header):not(.general-header):not(.barang-header)
+  td {
+  transition: background-color 0.15s ease;
 }
 
 /* ─── Empty / Loading states ─────────────────────────────── */
@@ -547,20 +591,30 @@ textarea.form-control {
 
 .loading-state {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
-  gap: 14px;
+  gap: 0;
   color: var(--primary);
   font-weight: 600;
+  padding: 8px 0;
+}
+
+.loading-state__text {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 14px;
 }
 
 .spinner {
   width: 22px;
   height: 22px;
-  border: 3px solid rgba(27, 42, 73, 0.2);
+  border: 3px solid rgba(27, 42, 73, 0.15);
   border-top-color: var(--primary);
   border-radius: 50%;
   animation: spin 0.75s linear infinite;
+  flex-shrink: 0;
 }
 
 @keyframes spin {
@@ -616,4 +670,163 @@ footer {
   .action-bar {
     display: none !important;
   }
+}
+
+/* ─── Form control height – all three config fields identical ── */
+.form-control,
+.form-select {
+  height: 41px !important;
+  min-height: 41px !important;
+}
+
+/* ─── Tom Select overrides ───────────────────────────────── */
+
+/* Wrapper fills the Bootstrap grid column */
+.ts-wrapper {
+  width: 100% !important;
+  display: block !important;
+  position: relative !important;
+}
+
+/* Strip all Bootstrap form-select visuals from the outer wrapper —
+   the visible styling lives entirely on .ts-control below. */
+.ts-wrapper.form-select {
+  padding: 0 !important;
+  height: auto !important;
+  min-height: auto !important;
+  max-height: none !important;
+  background: transparent !important;
+  box-shadow: none !important;
+  outline: none !important;
+}
+
+/* ── Visible control bar — must look identical to .form-control ── */
+.ts-control {
+  /* Geometry */
+  width: 100% !important;
+  height: 38px !important;
+  min-height: 38px !important;
+  max-height: 38px !important;
+  box-sizing: border-box !important;
+
+  /* Layout — left-aligned row, caret sits on the right */
+  display: flex !important;
+  align-items: center !important;
+  flex-wrap: nowrap !important;
+  justify-content: flex-start !important;
+  overflow: hidden !important;
+
+  /* Spacing — 12 px left, 36 px right so caret never overlaps text */
+  padding: 0 36px 0 12px !important;
+
+  /* Appearance — identical tokens to .form-control */
+  background: #ffffff !important;
+  border: 1.5px solid #dce8f7 !important;
+  border-radius: 8px !important;
+  box-shadow: 0 2px 8px rgba(27, 42, 73, 0.06) !important;
+
+  /* Typography */
+  font-size: 13.5px !important;
+  color: #1a2540 !important;
+  text-align: left !important;
+
+  cursor: pointer !important;
+  transition:
+    border-color 0.15s ease,
+    box-shadow 0.15s ease !important;
+}
+
+/* Focus ring — same as .form-control:focus */
+.ts-wrapper.focus .ts-control {
+  border-color: #3b82f6 !important;
+  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.18) !important;
+}
+
+/* Selected item chip — single line, ellipsis, left-anchored */
+.ts-control .item {
+  white-space: nowrap !important;
+  overflow: hidden !important;
+  text-overflow: ellipsis !important;
+  flex: 0 1 auto !important;
+  min-width: 0 !important;
+  max-width: 100% !important;
+  line-height: 1.4 !important;
+  text-align: left !important;
+}
+
+/* Search input that appears while typing — left-aligned, no extra spacing */
+.ts-wrapper .ts-control input[type="text"],
+.ts-wrapper .ts-control input {
+  flex: 1 1 0 !important;
+  min-width: 4px !important;
+  max-width: 100% !important;
+  height: auto !important;
+  padding: 0 !important;
+  margin: 0 !important;
+  border: none !important;
+  outline: none !important;
+  background: transparent !important;
+  color: #1a2540 !important;
+  font-size: 13.5px !important;
+  line-height: 1.4 !important;
+  text-align: left !important;
+  box-shadow: none !important;
+}
+
+/* Caret arrow positioned absolutely inside the control */
+.ts-wrapper .ts-control::after {
+  position: absolute !important;
+  right: 12px !important;
+}
+
+/* ── Dropdown panel ── */
+.ts-dropdown {
+  border: 1.5px solid #dce8f7 !important;
+  border-radius: 8px !important;
+  background: #ffffff !important;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12) !important;
+  font-size: 13.5px !important;
+  margin-top: 4px !important;
+  max-height: 260px !important;
+  overflow-y: auto !important;
+  z-index: 9999 !important;
+}
+
+.ts-dropdown-content {
+  max-height: 220px !important;
+  overflow-y: auto !important;
+}
+
+.ts-dropdown .option {
+  color: #1a2540 !important;
+  padding: 9px 12px !important;
+  white-space: normal !important;
+  word-break: break-word !important;
+  line-height: 1.4 !important;
+  text-align: left !important;
+}
+
+.ts-dropdown .option:hover,
+.ts-dropdown .option.active {
+  background: rgba(27, 42, 73, 0.08) !important;
+  color: #2b6cb0 !important;
+}
+
+.ts-dropdown .option.selected {
+  background: rgba(27, 42, 73, 0.06) !important;
+  font-weight: 600 !important;
+}
+
+/* Search input inside the dropdown header (if present) */
+.ts-dropdown .ts-dropdown-header,
+.ts-wrapper .ts-dropdown input {
+  border: none !important;
+  border-bottom: 1px solid #dce8f7 !important;
+  background: #ffffff !important;
+  color: #1a2540 !important;
+  padding: 8px 12px !important;
+  font-size: 13px !important;
+  width: 100% !important;
+  outline: none !important;
+  text-align: left !important;
 }

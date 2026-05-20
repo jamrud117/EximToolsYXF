@@ -152,10 +152,11 @@ function _checkExBC({ jenisTransaksi, parsedExBC, sheetsDATA, onResult, onSectio
 
 /**
  * General checks: Jenis Transaksi, Customer, Address, NPWP.
+ * Jenis Transaksi is auto-detected from the draft file (KODE TUJUAN PENGIRIMAN),
+ * so it is shown as-is without a manual reference value.
  */
-function _checkGeneral({ jenisTransaksi, selectedTrx, config, sheetsDATA, onResult }) {
-  onResult("Jenis Transaksi", jenisTransaksi, selectedTrx,
-    jenisTransaksi.toUpperCase() === selectedTrx.toUpperCase());
+function _checkGeneral({ jenisTransaksi, config, sheetsDATA, onResult }) {
+  onResult("Jenis Transaksi", jenisTransaksi, jenisTransaksi, true);
 
   const customer = getCustomerDraft(sheetsDATA);
   onResult("Customer", customer, config.check || "",
@@ -173,17 +174,15 @@ function _checkGeneral({ jenisTransaksi, selectedTrx, config, sheetsDATA, onResu
 
 /**
  * Financial checks: CIF, Harga Penyerahan, PPN 11%.
- *
- * IMPORTANT — Harga Penyerahan = cifSum × kursAPI.
- * Kurs TIDAK diambil dari file INV karena sistem CEISA biasanya tidak
- * mencantumkan kurs pada file ekspor.
+ * Valuta is auto-detected from the draft file (KODE VALUTA header), so
+ * both the draft column and the INV reference use the same currency label.
  */
-function _checkFinancials({ cifSum, draftValues, valuta, selectedValuta, kursAPI, onResult }) {
+function _checkFinancials({ cifSum, draftValues, valuta, kursAPI, onResult }) {
   // CIF comparison
   onResult("CIF",
     `${formatCurr(draftValues.cif)} ${valuta}`,
-    `${formatCurr(cifSum)} ${selectedValuta}`,
-    isEqual(draftValues.cif, cifSum) && valuta === selectedValuta
+    `${formatCurr(cifSum)} ${valuta}`,
+    isEqual(draftValues.cif, cifSum)
   );
 
   // Harga Penyerahan: selalu cifSum × kurs dari API
@@ -282,7 +281,7 @@ function _checkDocuments({ sheetINV, sheetPL, sheetsDATA, invCols, kontrakNo, ko
 /**
  * Per-item (Barang) checks: Code, Item Name, Quantity, NW, GW, Amount.
  */
-function _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataRows, valuta, selectedValuta, onResult, onBarangHeader }) {
+function _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataRows, valuta, onResult, onBarangHeader }) {
   const rangeBarang = XLSX.utils.decode_range(sheetsDATA.BARANG["!ref"]);
   const plCols      = findHeaderColumns(sheetPL, { nw: "NW", gw: "GW" });
 
@@ -337,8 +336,8 @@ function _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataR
     const invCIF   = invCols.cif ? getCellValueRC(sheetINV, rowINV, invCols.cif) : "";
     onResult("Amount",
       `${formatCurr(draftCIF)} ${valuta}`,
-      `${formatCurr(invCIF)} ${selectedValuta}`,
-      isEqual(draftCIF, invCIF) && valuta === selectedValuta,
+      `${formatCurr(invCIF)} ${valuta}`,
+      isEqual(draftCIF, invCIF),
       { group }
     );
 
@@ -353,6 +352,10 @@ function _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataR
  * This function contains no direct DOM access — all output goes through
  * the provided callbacks.
  *
+ * Valuta is auto-detected from the draft HEADER sheet (KODE VALUTA).
+ * Jenis Transaksi is auto-detected from the draft HEADER sheet (KODE TUJUAN PENGIRIMAN).
+ * Both selectedValuta and selectedTrx are no longer required.
+ *
  * @param {Object}   params
  * @param {Object}   params.sheetPL
  * @param {Object}   params.sheetINV
@@ -360,8 +363,6 @@ function _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataR
  * @param {string}   params.kontrakNo
  * @param {string}   params.kontrakTgl
  * @param {string}   params.selectedPT
- * @param {string}   params.selectedValuta
- * @param {string}   params.selectedTrx
  * @param {Array}    params.parsedExBC
  * @param {Object}   params.mappings
  * @param {Function} params.onResult         (check, value, ref, isMatch, opts)
@@ -376,8 +377,6 @@ async function runChecks({
   kontrakNo,
   kontrakTgl,
   selectedPT,
-  selectedValuta,
-  selectedTrx,
   parsedExBC,
   mappings,
   onResult,
@@ -398,36 +397,74 @@ async function runChecks({
   // ── 4. CIF sum from INV ──────────────────────────────────
   const cifSum = _sumCIFFromINV(sheetINV, invCols, rangeINV);
 
-  // ── 5. Valuta & kurs — ALWAYS from API ──────────────────
-  // Kurs tidak diambil dari file INV karena sistem CEISA biasanya
-  // tidak mencantumkan kurs pada file ekspor.
-  const valuta = (getCellValue(sheetsDATA.HEADER, "CI2") || "USD").toUpperCase();
+  // ── 5. Valuta — auto-detected from HEADER (KODE VALUTA) ──
+  // Falls back to legacy hardcoded cell CI2 if the header keyword
+  // is not found (older draft formats).
+  let valuta = "USD";
+  {
+    const vCols = findHeaderColumns(
+      sheetsDATA.HEADER,
+      { kodeValuta: "KODE VALUTA" },
+      5
+    );
+    if (vCols.kodeValuta !== undefined) {
+      const raw = getCellValueRC(
+        sheetsDATA.HEADER,
+        (vCols.headerRow != null ? vCols.headerRow : 0) + 1,
+        vCols.kodeValuta
+      );
+      if (raw) valuta = String(raw).trim().toUpperCase();
+    } else {
+      valuta = (getCellValue(sheetsDATA.HEADER, "CI2") || "USD").toUpperCase();
+    }
+  }
+
+  // ── 6. Kurs from API ─────────────────────────────────────
   const kursAPI = await getKursFromAPI(valuta);
   if (!kursAPI) throw new Error(`Gagal mengambil kurs ${valuta} dari API.`);
 
-  // ── 6. Header draft values ───────────────────────────────
+  // ── 7. Header draft values ───────────────────────────────
   const draftValues = _extractHeaderDraftValues(sheetsDATA.HEADER);
 
-  // ── 7. Jenis transaksi ───────────────────────────────────
-  const jenisTransaksi = resolveJenisTransaksi(getCellValue(sheetsDATA.HEADER, "N2"));
+  // ── 8. Jenis Transaksi — auto-detected from HEADER ───────
+  // (KODE TUJUAN PENGIRIMAN, fallback to N2)
+  let jenisTransaksi;
+  {
+    const tCols = findHeaderColumns(
+      sheetsDATA.HEADER,
+      { kodeTujuan: "KODE TUJUAN PENGIRIMAN" },
+      5
+    );
+    let kode;
+    if (tCols.kodeTujuan !== undefined) {
+      kode = getCellValueRC(
+        sheetsDATA.HEADER,
+        (tCols.headerRow != null ? tCols.headerRow : 0) + 1,
+        tCols.kodeTujuan
+      );
+    } else {
+      kode = getCellValue(sheetsDATA.HEADER, "N2"); // legacy fallback
+    }
+    jenisTransaksi = resolveJenisTransaksi(kode);
+  }
 
-  // ── 8. PL aggregates ─────────────────────────────────────
+  // ── 9. PL aggregates ─────────────────────────────────────
   const plAggregates = hitungKemasanNWGW(sheetPL);
   const plUnits      = getPLUnits(sheetPL);
   const plDataRows   = getPLDataRows(sheetPL, 0);
 
-  // ── 9. Run check sections ────────────────────────────────
+  // ── 10. Run check sections ────────────────────────────────
 
   _checkExBC({ jenisTransaksi, parsedExBC, sheetsDATA, onResult, onSectionHeader });
 
   onSectionHeader("general", "General Checking");
 
-  _checkGeneral({ jenisTransaksi, selectedTrx, config, sheetsDATA, onResult });
-  _checkFinancials({ cifSum, draftValues, valuta, selectedValuta, kursAPI, onResult });
+  _checkGeneral({ jenisTransaksi, config, sheetsDATA, onResult });
+  _checkFinancials({ cifSum, draftValues, valuta, kursAPI, onResult });
   _checkWeightsAndPackaging({ plAggregates, sheetsDATA, draftValues, onResult });
   _checkDocuments({ sheetINV, sheetPL, sheetsDATA, invCols, kontrakNo, kontrakTgl, onResult });
 
-  _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataRows, valuta, selectedValuta, onResult, onBarangHeader });
+  _checkBarang({ sheetINV, sheetPL, sheetsDATA, invCols, plUnits, plDataRows, valuta, onResult, onBarangHeader });
 
   return { kursAPI, valuta };
 }

@@ -1,9 +1,13 @@
 // ============================================================
 // ui/event.handler.js — DOM event wiring & UI state management
-// Depends on: all core & utils modules (loaded via script tags)
+// v3: Fixed loading state flow with beginBatch/commitBatch
 // ============================================================
 
-// ── Navbar active link ────────────────────────────────────────
+// ── Global state ──────────────────────────────────────────────
+let _cachedRunArgs  = null;
+let _autoJenisTrx   = null;
+
+// ── Navbar active link ─────────────────────────────────────────
 (function highlightActiveNav() {
   const currentPage = window.location.pathname.split("/").pop();
   document.querySelectorAll(".nav-links a").forEach((link) => {
@@ -11,36 +15,109 @@
   });
 })();
 
-// ── Company dropdown ──────────────────────────────────────────
+// ── Company dropdown (Tom Select) ─────────────────────────────
+let _tomSelectInstance = null;
+
 async function loadPTDropdown() {
   const mappings = JSON.parse(localStorage.getItem("companyMappings") || "{}");
   const ptSelect = document.getElementById("ptSelect");
-  ptSelect.innerHTML = '<option value="">Pilih Perusahaan</option>';
 
+  if (_tomSelectInstance) {
+    _tomSelectInstance.destroy();
+    _tomSelectInstance = null;
+  }
+
+  ptSelect.innerHTML = '<option value="">Mendeteksi dari file…</option>';
   Object.keys(mappings).forEach((pt) => {
     const opt       = document.createElement("option");
     opt.value       = pt;
     opt.textContent = pt;
     ptSelect.appendChild(opt);
   });
+
+  _tomSelectInstance = new TomSelect("#ptSelect", {
+    allowEmptyOption: true,
+    maxOptions:       null,
+    searchField:      ["text"],
+    placeholder:      "Mendeteksi dari file…",
+    dropdownParent:   "body",
+    render: {
+      option: (data, escape) =>
+        `<div class="option" title="${escape(data.text)}">${escape(data.text)}</div>`,
+      item:   (data, escape) =>
+        `<div class="item" title="${escape(data.text)}">${escape(data.text)}</div>`,
+    },
+  });
 }
 
-// ── ExBC visibility toggle ────────────────────────────────────
-function bindExBCToggle() {
-  const jenisTrxSelect = document.getElementById("jenisTrx");
-  const exBCWrapper    = document.getElementById("exBCWrapper");
+// ── Fuzzy company name match ───────────────────────────────────
+function _normCompanyName(name) {
+  return String(name)
+    .toUpperCase()
+    .replace(/\.\s*/g, ". ")
+    .replace(/\s+/g, " ")
+    .trim();
+}
 
-  function toggle() {
-    const show = ["RETUR", "LAINNYA"].includes(jenisTrxSelect.value);
-    exBCWrapper.style.display = show ? "block" : "none";
-    if (!show) document.getElementById("exBC").value = "";
+function fuzzyMatchCompany(draftName, optionValues) {
+  if (!draftName) return "";
+  const normDraft = _normCompanyName(draftName);
+  return optionValues.find((v) => _normCompanyName(v) === normDraft) || "";
+}
+
+// ── Auto-detect & set company ──────────────────────────────────
+function autoSetCompany(sheetsDATA) {
+  const draftName = getCustomerDraft(sheetsDATA);
+  if (!draftName) return;
+
+  const ptSelect     = document.getElementById("ptSelect");
+  const optionValues = Array.from(ptSelect.options)
+    .map((o) => o.value)
+    .filter((v) => v);
+
+  const matched = fuzzyMatchCompany(draftName, optionValues);
+  if (matched) {
+    if (_tomSelectInstance) {
+      _tomSelectInstance.setValue(matched, true);
+    } else {
+      ptSelect.value = matched;
+    }
+  }
+}
+
+// ── Auto-detect jenis transaksi ────────────────────────────────
+function autoDetectJenisTrx(sheetsDATA) {
+  if (!sheetsDATA || !sheetsDATA.HEADER) return "PENYERAHAN BKP";
+
+  const cols = findHeaderColumns(
+    sheetsDATA.HEADER,
+    { kodeTujuan: "KODE TUJUAN PENGIRIMAN" },
+    5
+  );
+
+  let kode;
+  if (cols.kodeTujuan !== undefined) {
+    kode = getCellValueRC(
+      sheetsDATA.HEADER,
+      (cols.headerRow != null ? cols.headerRow : 0) + 1,
+      cols.kodeTujuan
+    );
+  } else {
+    kode = getCellValue(sheetsDATA.HEADER, "N2");
   }
 
-  jenisTrxSelect.addEventListener("change", toggle);
-  toggle(); // set initial state
+  return resolveJenisTransaksi(kode);
 }
 
-// ── Filter change ─────────────────────────────────────────────
+// ── ExBC wrapper visibility ────────────────────────────────────
+function updateExBCVisibility(jenisTransaksi) {
+  const exBCWrapper = document.getElementById("exBCWrapper");
+  const show        = ["RETUR", "LAINNYA"].includes(jenisTransaksi);
+  exBCWrapper.style.display = show ? "block" : "none";
+  if (!show) document.getElementById("exBC").value = "";
+}
+
+// ── Filter change ──────────────────────────────────────────────
 function bindFilterChange() {
   const filterSelect = document.getElementById("filter");
   if (!filterSelect) return;
@@ -49,72 +126,136 @@ function bindFilterChange() {
   );
 }
 
-// ── Cross-check button ────────────────────────────────────────
-function bindCheckButton() {
-  const btn       = document.getElementById("btnCheck");
+// ── Core: run checks using cached data + current UI state ──────
+//
+// Flow (fixed v3):
+//   1. showLoadingState()          — user sees spinner immediately
+//   2. beginBatch()                — all add* calls buffer into fragment
+//   3. await runChecks(...)        — async (kurs API + heavy compute)
+//      → callbacks populate fragment (NOT the live tbody)
+//   4. commitBatch()               — atomically swap loading → results
+//   5. bindCollapsibles()
+//
+// This ensures the spinner is ALWAYS visible until data is ready.
+// There is no window where the table is empty and white.
+
+async function reRunChecks() {
+  if (!_cachedRunArgs) return;
+
+  const { sheetPL, sheetINV, sheetsDATA, kontrakNo, kontrakTgl } = _cachedRunArgs;
+
+  const mappings   = JSON.parse(localStorage.getItem("companyMappings") || "{}");
+  const selectedPT = document.getElementById("ptSelect").value;
+
+  let parsedExBC = [];
+  if (_autoJenisTrx === "RETUR" || _autoJenisTrx === "LAINNYA") {
+    const exBCText = document.getElementById("exBC").value.trim();
+    if (exBCText) parsedExBC = parseExBC(exBCText);
+  }
+
+  // Show spinner (initial load already did this, but re-runs need it too)
+  TableRenderer.showLoadingState();
+
+  // Yield once so the spinner paints before XLSX / compute blocks main thread
+  await new Promise(resolve => setTimeout(resolve, 0));
+
+  // Open batch — all row additions go to a hidden DocumentFragment
+  TableRenderer.beginBatch();
+
+  try {
+    const { kursAPI } = await runChecks({
+      sheetPL, sheetINV, sheetsDATA,
+      kontrakNo, kontrakTgl,
+      selectedPT, parsedExBC, mappings,
+      onResult:        (check, value, ref, isMatch, opts = {}) =>
+        TableRenderer.addResult(check, value, ref, isMatch, opts),
+      onSectionHeader: (type, label) => TableRenderer.addSectionHeader(type, label),
+      onBarangHeader:  (counter)     => TableRenderer.addBarangHeader(counter),
+    });
+
+    // Atomically replace spinner with completed results
+    TableRenderer.commitBatch();
+
+    const kursEl = document.getElementById("kurs");
+    if (kursEl) kursEl.value = kursAPI === 1 ? "1" : kursAPI.toLocaleString("id-ID");
+
+    TableRenderer.bindCollapsibles();
+
+  } catch (err) {
+    TableRenderer.clearTable();
+    TableRenderer.showEmptyState();
+    Swal.fire({
+      icon: "error", title: "Terjadi Kesalahan",
+      html: err.message, scrollbarPadding: false,
+    });
+  }
+}
+
+// ── Company dropdown change → re-render ───────────────────────
+function bindPtSelectChange() {
+  const ptSelect = document.getElementById("ptSelect");
+  ptSelect.addEventListener("change", async () => {
+    if (!_cachedRunArgs) return;
+    await reRunChecks();
+    TableRenderer.applyFilter(document.getElementById("filter").value);
+  });
+}
+
+// ── ExBC textarea: re-run check when content changes (debounced)
+function bindExBCRecheck() {
+  let debounceTimer;
+  document.getElementById("exBC").addEventListener("input", () => {
+    clearTimeout(debounceTimer);
+    debounceTimer = setTimeout(async () => {
+      if (!_cachedRunArgs) return;
+      await reRunChecks();
+      TableRenderer.applyFilter(document.getElementById("filter").value);
+    }, 800);
+  });
+}
+
+// ── File input: parse + auto-check on change ──────────────────
+function bindFileChange() {
   const fileInput = document.getElementById("files");
 
-  btn.addEventListener("click", async () => {
-    const selectedPT = document.getElementById("ptSelect").value;
+  fileInput.addEventListener("change", async function () {
+    const hint  = document.getElementById("uploadHint");
+    const count = this.files.length;
 
-    if (!selectedPT) {
-      return Swal.fire({
-        toast: true, position: "top-end", icon: "warning",
-        title: "Pilih perusahaan terlebih dahulu",
-        showConfirmButton: false, timer: 2500, timerProgressBar: true,
-      });
+    if (count === 0) {
+      hint.textContent = "Upload 2–3 file: Draft EXIM + INV & PL (gabungan atau terpisah)";
+      hint.className   = "upload-sub";
+      _cachedRunArgs   = null;
+      _autoJenisTrx    = null;
+      TableRenderer.clearTable();
+      TableRenderer.showEmptyState();
+      return;
+    } else if (count === 2 || count === 3) {
+      hint.textContent = `✓ ${count} file dipilih`;
+      hint.className   = "upload-sub hint-ok";
+    } else if (count > 3) {
+      hint.textContent = `${count} file dipilih — maksimal 3 file`;
+      hint.className   = "upload-sub hint-warn";
+      return;
+    } else {
+      hint.textContent = `${count} file dipilih — minimal 2 file`;
+      hint.className   = "upload-sub hint-warn";
+      return;
     }
 
-    if (!fileInput.files || fileInput.files.length === 0) {
-      return Swal.fire({
-        icon: "error", title: "Pilih File",
-        html: "Upload <b>2 file</b> (Draft EXIM + INV&amp;PL gabungan) atau <b>3 file</b> (Draft EXIM + INV + PL terpisah).",
-        scrollbarPadding: false,
-      });
-    }
-
-    if (fileInput.files.length > 3) {
-      return Swal.fire({
-        icon: "error", title: "Terlalu Banyak File",
-        text: "Maksimal 3 file Excel yang diperbolehkan.",
-        scrollbarPadding: false,
-      });
-    }
-
-    // ── Ex BC validation ────────────────────────────────
-    const jenisTrx = document.getElementById("jenisTrx").value;
-    let parsedExBC = [];
-
-    if (jenisTrx === "RETUR" || jenisTrx === "LAINNYA") {
-      const exBCText = document.getElementById("exBC").value.trim();
-
-      if (!exBCText) {
-        return Swal.fire({
-          icon: "warning", title: "Ex BC Wajib Diisi",
-          text: "Jenis transaksi RETUR / LAINNYA wajib mengisi Ex BC.",
-        });
-      }
-
-      parsedExBC = parseExBC(exBCText);
-
-      if (parsedExBC.length === 0) {
-        return Swal.fire({
-          icon: "warning", title: "Format Ex BC Salah",
-          text: "Gunakan format: 27 = 012345 (2025-10-03)",
-        });
-      }
-    }
-
-    // ── Loading state ────────────────────────────────────
-    btn.disabled    = true;
-    btn.innerHTML   = `<span class="spinner" style="width:16px;height:16px;border-width:2px;margin-right:6px"></span>Memproses…`;
+    // Reset cache and show loading immediately
+    _cachedRunArgs = null;
+    _autoJenisTrx  = null;
+    TableRenderer.clearTable();
     TableRenderer.showLoadingState();
 
-    try {
-      await processFiles(Array.from(fileInput.files), parsedExBC);
+    // Yield so the spinner paints before XLSX.read() blocks the thread
+    await new Promise(resolve => setTimeout(resolve, 0));
 
-      const filterEl  = document.getElementById("filter");
-      filterEl.value  = "beda";
+    try {
+      await processFiles(Array.from(this.files));
+      const filterEl = document.getElementById("filter");
+      filterEl.value = "beda";
       TableRenderer.applyFilter("beda");
     } catch (err) {
       TableRenderer.clearTable();
@@ -123,18 +264,11 @@ function bindCheckButton() {
         icon: "error", title: "Terjadi Kesalahan",
         html: err.message, scrollbarPadding: false,
       });
-    } finally {
-      btn.disabled  = false;
-      btn.innerHTML = `
-        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
-          <path d="M9 11l3 3L22 4M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"/>
-        </svg>
-        Cross Check`;
     }
   });
 }
 
-// ── Upload zone (drag & drop + click) ────────────────────────
+// ── Upload zone (drag & drop + click) ─────────────────────────
 const uploadZone = document.getElementById("uploadZone");
 const fileInput  = document.getElementById("files");
 
@@ -167,15 +301,14 @@ uploadZone.addEventListener("drop", (e) => {
   fileInput.dispatchEvent(new Event("change", { bubbles: true }));
 });
 
-// ── Main process orchestrator ─────────────────────────────────
-async function processFiles(files, parsedExBC) {
+// ── Main process orchestrator ──────────────────────────────────
+async function processFiles(files) {
   let sheetPL    = null;
   let sheetINV   = null;
   let sheetsDATA = null;
   let kontrakNo  = "";
   let kontrakTgl = "";
 
-  // Classify every uploaded file
   const classified = [];
   for (const file of files) {
     const wb   = await readExcelFile(file);
@@ -191,22 +324,17 @@ async function processFiles(files, parsedExBC) {
     );
   }
 
-  // Populate sheets from classified files
-  for (const { file, wb, type } of classified) {
+  for (const { wb, type } of classified) {
     if (type === "DATA") {
       sheetsDATA = wb.Sheets;
-
     } else if (type === "INV") {
       sheetINV = wb.Sheets[wb.SheetNames[0]];
-
     } else if (type === "PL") {
       sheetPL = wb.Sheets[wb.SheetNames[0]];
       const info = extractKontrakInfoFromPL(sheetPL);
       kontrakNo  = info.kontrakNo;
       kontrakTgl = info.kontrakTgl;
-
     } else if (type === "INV_PL") {
-      // Mode 2 file: satu workbook berisi INV dan PL di sheet terpisah
       const { invSheet, plSheet } = extractSheetsFromCombined(wb);
       sheetINV = invSheet;
       sheetPL  = plSheet;
@@ -216,7 +344,6 @@ async function processFiles(files, parsedExBC) {
     }
   }
 
-  // Validate completeness
   const missing = [];
   if (!sheetsDATA) missing.push("Draft EXIM");
   if (!sheetINV)   missing.push("Invoice (INV)");
@@ -231,35 +358,23 @@ async function processFiles(files, parsedExBC) {
     );
   }
 
-  const mappings    = JSON.parse(localStorage.getItem("companyMappings") || "{}");
-  const selectedPT  = document.getElementById("ptSelect").value;
-  const selectedValuta = (document.getElementById("valutaSelect")?.value || "USD").toUpperCase();
-  const selectedTrx = document.getElementById("jenisTrx")?.value?.trim() || "";
+  autoSetCompany(sheetsDATA);
 
-  TableRenderer.clearTable();
+  _autoJenisTrx = autoDetectJenisTrx(sheetsDATA);
+  updateExBCVisibility(_autoJenisTrx);
 
-  const { kursAPI, valuta } = await runChecks({
-    sheetPL, sheetINV, sheetsDATA,
-    kontrakNo, kontrakTgl,
-    selectedPT, selectedValuta, selectedTrx,
-    parsedExBC, mappings,
-    onResult:        (check, value, ref, isMatch, opts = {}) => TableRenderer.addResult(check, value, ref, isMatch, opts),
-    onSectionHeader: (type, label)  => TableRenderer.addSectionHeader(type, label),
-    onBarangHeader:  (counter)      => TableRenderer.addBarangHeader(counter),
-  });
+  _cachedRunArgs = { sheetPL, sheetINV, sheetsDATA, kontrakNo, kontrakTgl };
 
-  // Update kurs display
-  const kursEl = document.getElementById("kurs");
-  if (kursEl) kursEl.value = kursAPI === 1 ? "1" : kursAPI.toLocaleString("id-ID");
-
-  TableRenderer.bindCollapsibles();
+  // reRunChecks will show loading, buffer results, then commit atomically
+  await reRunChecks();
 }
 
-// ── Boot ──────────────────────────────────────────────────────
+// ── Boot ───────────────────────────────────────────────────────
 document.addEventListener("DOMContentLoaded", () => {
   loadPTDropdown();
-  bindExBCToggle();
   bindFilterChange();
-  bindCheckButton();
+  bindPtSelectChange();
+  bindFileChange();
+  bindExBCRecheck();
   TableRenderer.showEmptyState();
 });

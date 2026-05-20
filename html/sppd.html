@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="id">
   <head>
     <meta charset="UTF-8" />
@@ -11,8 +11,15 @@
       href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css"
       rel="stylesheet"
     />
+    <!-- Tom Select -->
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.3.1/css/tom-select.bootstrap5.min.css"
+    />
     <!-- XLSX -->
     <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <!-- Tom Select JS -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tom-select/2.3.1/js/tom-select.complete.min.js"></script>
     <!-- Styles -->
     <link rel="stylesheet" href="../css/styles_sppd.css" />
   </head>
@@ -156,46 +163,11 @@
                       >Nama Perusahaan</label
                     >
                     <select id="ptSelect" class="form-select">
-                      <option value="">Pilih Perusahaan</option>
+                      <option value="">Mendeteksi dari file…</option>
                     </select>
                   </div>
                 </div>
-                <div class="col-6 col-md-2">
-                  <div class="field-group">
-                    <label class="field-label" for="valutaSelect">Valuta</label>
-                    <select id="valutaSelect" class="form-select">
-                      <option value="USD" selected>USD</option>
-                      <option value="IDR">IDR</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="col-6 col-md-3">
-                  <div class="field-group">
-                    <label class="field-label" for="jenisTrx"
-                      >Jenis Transaksi</label
-                    >
-                    <select id="jenisTrx" class="form-select">
-                      <option value="PENYERAHAN BKP" selected>
-                        1 — PENYERAHAN BKP
-                      </option>
-                      <option value="PENYERAHAN JKP">2 — PENYERAHAN JKP</option>
-                      <option value="RETUR">3 — RETUR</option>
-                      <option value="NON PENYERAHAN">4 — NON PENYERAHAN</option>
-                      <option value="LAINNYA">5 — LAINNYA</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="col-6 col-md-2">
-                  <div class="field-group">
-                    <label class="field-label" for="filter">Filter Hasil</label>
-                    <select id="filter" class="form-select">
-                      <option value="all">Semua</option>
-                      <option value="sama">Sama</option>
-                      <option value="beda">Beda</option>
-                    </select>
-                  </div>
-                </div>
-                <div class="col-6 col-md-1">
+                <div class="col-12 col-md-4">
                   <div class="field-group">
                     <label class="field-label" for="kurs">Kurs BC</label>
                     <input
@@ -205,6 +177,16 @@
                       placeholder="—"
                       disabled
                     />
+                  </div>
+                </div>
+                <div class="col-12 col-md-4">
+                  <div class="field-group">
+                    <label class="field-label" for="filter">Filter Hasil</label>
+                    <select id="filter" class="form-select">
+                      <option value="all">Semua</option>
+                      <option value="sama">Sama</option>
+                      <option value="beda">Beda</option>
+                    </select>
                   </div>
                 </div>
               </div>
@@ -224,32 +206,6 @@
                   placeholder="Contoh: 27 = 012345 (2025-10-03)"
                 ></textarea>
               </div>
-
-              <!-- Action button -->
-              <div class="action-bar mt-4">
-                <button
-                  id="btnCheck"
-                  class="btn-action btn-action-primary"
-                  type="button"
-                >
-                  <svg
-                    xmlns="http://www.w3.org/2000/svg"
-                    width="15"
-                    height="15"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    class="me-1"
-                  >
-                    <path d="M9 11l3 3L22 4" />
-                    <path
-                      d="M21 12v7a2 2 0 01-2 2H5a2 2 0 01-2-2V5a2 2 0 012-2h11"
-                    />
-                  </svg>
-                  Cross Check
-                </button>
-              </div>
             </div>
           </div>
 
@@ -263,6 +219,12 @@
             <div class="card-body-inner p-0">
               <div class="table-responsive">
                 <table class="result-table" id="resultTable">
+                  <colgroup>
+                    <col class="col-check" />
+                    <col class="col-draft" />
+                    <col class="col-ref" />
+                    <col class="col-result" />
+                  </colgroup>
                   <thead>
                     <tr>
                       <th>PEMERIKSAAN</th>
@@ -309,32 +271,5 @@
     <!-- 4. UI -->
     <script src="../js/SPPD/ui/table.renderer.js"></script>
     <script src="../js/SPPD/ui/event.handler.js"></script>
-
-    <!-- File upload feedback -->
-    <script>
-      document.getElementById("files").addEventListener("change", function () {
-        if (isProgrammaticChange) {
-          isProgrammaticChange = false;
-        }
-
-        const hint = document.getElementById("uploadHint");
-        const count = this.files.length;
-
-        if (count === 0) {
-          hint.textContent =
-            "Upload 2–3 file: Draft EXIM + INV & PL (gabungan atau terpisah)";
-          hint.className = "upload-sub";
-        } else if (count === 2 || count === 3) {
-          hint.textContent = `✓ ${count} file dipilih`;
-          hint.className = "upload-sub hint-ok";
-        } else if (count > 3) {
-          hint.textContent = `${count} file dipilih — maksimal 3 file`;
-          hint.className = "upload-sub hint-warn";
-        } else {
-          hint.textContent = `${count} file dipilih — minimal 2 file`;
-          hint.className = "upload-sub hint-warn";
-        }
-      });
-    </script>
   </body>
 </html>
